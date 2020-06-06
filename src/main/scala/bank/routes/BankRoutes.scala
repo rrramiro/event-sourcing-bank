@@ -5,8 +5,8 @@ import bank.model.commands._
 import bank.model.dto._
 import bank.services._
 import bank.storage._
-import cats.data._
 import cats.effect.Sync
+import cats.mtl.Raise
 import cats.syntax.semigroupk._
 import cats.syntax.flatMap._
 import io.circe.generic.auto._
@@ -20,7 +20,7 @@ class BankRoutes[F[_]: Sync](
   clientService: ClientService[F],
   accountsRepository: AccountsRepository[F],
   transactionsRepository: TransactionsRepository[F]
-) extends Http4sDsl[EitherT[F, AggregateError, *]] {
+) extends Http4sDsl[F] {
 
   implicit class AccountOps(account: Account) {
     def toDto: AccountDto =
@@ -40,10 +40,8 @@ class BankRoutes[F[_]: Sync](
       )
   }
 
-  type ResultT[T] = EitherT[F, AggregateError, T]
-
-  val accountRoutes: HttpRoutes[ResultT] =
-    HttpRoutes.of[ResultT] {
+  def accountRoutes(implicit R: Raise[F, AggregateError]): HttpRoutes[F] =
+    HttpRoutes.of[F] {
       case req @ POST -> Root / "accounts" =>
         req.as[AccountDto] >>= (dto => accountService.process(OpenAccountCommand(dto.clientId))) >>= (account =>
           Ok(account.toDto.asJson)
@@ -60,8 +58,8 @@ class BankRoutes[F[_]: Sync](
         )
     }
 
-  val clientRoutes: HttpRoutes[ResultT] =
-    HttpRoutes.of[ResultT] {
+  def clientRoutes(implicit R: Raise[F, AggregateError]): HttpRoutes[F] =
+    HttpRoutes.of[F] {
       case req @ POST -> Root / "clients" =>
         req.as[ClientDto] >>= (dto => clientService.process(EnrollClientCommand(dto.name, dto.email))) >>= (client =>
           Ok(client.toDto.asJson)
@@ -74,14 +72,18 @@ class BankRoutes[F[_]: Sync](
         )
     }
 
-  val projections: HttpRoutes[ResultT] =
-    HttpRoutes.of[ResultT] {
+  val projections: HttpRoutes[F] =
+    HttpRoutes.of[F] {
       case GET -> Root / "accounts" / UUIDVar(accountId) / "transactions" =>
-        EitherT.right[AggregateError](transactionsRepository.listByAccount(accountId)) >>= (dto => Ok(dto.asJson))
+        transactionsRepository.listByAccount(accountId) >>= (dto => Ok(dto.asJson))
       case GET -> Root / "clients" / UUIDVar(clientId) / "accounts" =>
-        EitherT.right[AggregateError](accountsRepository.getAccounts(clientId)) >>= (dto => Ok(dto.asJson))
+        accountsRepository.getAccounts(clientId) >>= (dto => Ok(dto.asJson))
     }
 
-  val routes: HttpRoutes[ResultT] = accountRoutes <+> clientRoutes <+> projections
-
+  val routes: HttpRoutes[F] = HttpErrorHandler[F, AggregateError] { implicit R =>
+    accountRoutes <+> clientRoutes <+> projections
+  } {
+    case AggregateVersionError => InternalServerError()
+    case AggregateNotFound     => NotFound()
+  }
 }

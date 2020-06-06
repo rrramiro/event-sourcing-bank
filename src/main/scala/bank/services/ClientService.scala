@@ -5,26 +5,24 @@ import java.util.UUID
 import bank.model.aggregates.{AggregateError, Client}
 import bank.model.commands._
 import bank.storage.EventStore
-import cats.data.EitherT
 import cats.effect.Sync
+import cats.mtl.Raise
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 
 class ClientService[F[_]: Sync](eventStore: EventStore[F]) {
 
-  type ResultT[T] = EitherT[F, AggregateError, T]
+  def load(id: UUID)(implicit F: Raise[F, AggregateError]): F[Client] =
+    eventStore.load(id) >>= Client.load[F](id)
 
-  def load(id: UUID): ResultT[Client] =
-    EitherT.right[AggregateError](eventStore.load(id)) >>= Client.load[ResultT](id)
-
-  def process(cmd: Command): ResultT[Client] =
+  def process(cmd: Command)(implicit F: Raise[F, AggregateError]): F[Client] =
     cmd match {
       case EnrollClientCommand(name, email) =>
-        Client.enroll[ResultT](UUID.randomUUID(), name, email) >>= storeEvents
+        Client.enroll[F](UUID.randomUUID(), name, email) >>= storeEvents
       case UpdateClientCommand(id, name, email) =>
-        load(id) >>= Client.update[ResultT](name, email) >>= storeEvents
+        load(id) >>= Client.update[F](name, email) >>= storeEvents
     }
 
-  private def storeEvents(client: Client): ResultT[Client] =
-    EitherT.right[AggregateError](eventStore.store(client.aggregateId).as(client))
+  private def storeEvents(client: Client): F[Client] =
+    eventStore.store(client.aggregateId).as(client)
 }

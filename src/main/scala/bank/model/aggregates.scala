@@ -9,7 +9,7 @@ import cats.syntax.applicative._
 import cats.syntax.eq._
 import cats.syntax.functor._
 import cats.instances.int._
-import cats.mtl._
+import cats.mtl.Raise
 
 object aggregates {
 
