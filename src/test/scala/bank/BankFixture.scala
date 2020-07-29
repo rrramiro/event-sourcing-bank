@@ -106,6 +106,6 @@ trait BankFixture { self: AsyncFunSuiteLike =>
                ) concurrently subs
           _ <- fs2.Stream.eval(switch.complete(())).delayBy(1 second)
         } yield r
-      }.compile.last.map(_.getOrElse(fail("no assertion"))).unsafeToFuture
+      }.compile.last.map(_.getOrElse(fail("no assertion"))).unsafeToFuture()
     }
 }
