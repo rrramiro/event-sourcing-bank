@@ -64,3 +64,14 @@ wartremoverErrors in (Compile, compile) ++= Warts.allBut(
 )
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
+
+missinglinkExcludedDependencies ++= Seq(
+  moduleFilter(organization = "ch.qos.logback", name = "logback-core"),
+  moduleFilter(organization = "ch.qos.logback", name = "logback-classic")
+)
+/*
+dependencyOverrides ++= Seq(
+  "co.fs2"                       %% "fs2-core" % fs2Version
+)
+conflictManager := ConflictManager.strict
+*/
