@@ -8,7 +8,6 @@ import bank.model.events.Event
 import bank.storage.EventStore
 import cats.data.EitherT
 import cats.effect._
-import cats.mtl.implicits._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.apply._

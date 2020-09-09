@@ -7,7 +7,6 @@ import bank.model.commands._
 import bank.storage.EventStore
 import cats.data.EitherT
 import cats.effect.Sync
-import cats.mtl.implicits._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 
