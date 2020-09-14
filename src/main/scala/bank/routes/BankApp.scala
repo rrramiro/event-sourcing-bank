@@ -9,15 +9,12 @@ import org.http4s.implicits.http4sKleisliResponseSyntaxOptionT
 import org.http4s.server.Router
 
 class BankApp[F[_]: Sync](
-  override val routes: HttpRoutes[EitherT[F, AggregateError, *]]
-) extends HttpErrorHandler[F, AggregateError]
-  with Http4sDsl[F] {
-
-  val handler: AggregateError => F[Response[F]] = {
-    case AggregateVersionError => InternalServerError()
-    case AggregateNotFound     => NotFound()
-  }
+  routes: HttpRoutes[EitherT[F, AggregateError, *]]
+) extends Http4sDsl[F] {
 
   val router: HttpApp[F] =
-    http4sKleisliResponseSyntaxOptionT(Router("/api" -> handle)).orNotFound
+    http4sKleisliResponseSyntaxOptionT(Router("/api" -> HttpErrorHandler[F, AggregateError](routes) {
+      case AggregateVersionError => InternalServerError()
+      case AggregateNotFound     => NotFound()
+    })).orNotFound
 }

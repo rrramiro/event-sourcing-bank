@@ -6,11 +6,10 @@ import cats.effect.Sync
 import cats.syntax.option._
 import org.http4s.{HttpRoutes, Request, Response}
 
-abstract class HttpErrorHandler[F[_]: Sync, E <: Throwable] {
-  def handler: E => F[Response[F]]
-  def routes: HttpRoutes[EitherT[F, E, *]]
-
-  def handle: HttpRoutes[F] =
+object HttpErrorHandler {
+  def apply[F[_]: Sync, E <: Throwable](
+    routes: HttpRoutes[EitherT[F, E, *]]
+  )(handler: E => F[Response[F]]): HttpRoutes[F] =
     Kleisli { req: Request[F] =>
       OptionT[F, Response[F]] {
         routes
