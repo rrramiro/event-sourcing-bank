@@ -13,7 +13,7 @@ import cats.syntax.functor._
 import cats.syntax.apply._
 import fs2.concurrent.Topic
 
-class AccountService[F[_]: Sync: Concurrent](
+class AccountService[F[_]: Concurrent](
   eventStore: EventStore[F],
   eventsTopic: Topic[F, Event]
 ) {

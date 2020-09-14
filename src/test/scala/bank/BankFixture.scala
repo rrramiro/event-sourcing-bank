@@ -28,7 +28,7 @@ trait BankFixture { self: AsyncFunSuiteLike =>
   private val transactionsRepository = new InMemoryTransactionsRepository[IO]
   private val accountsRepository     = new InMemoryAccountsRepository[IO]
 
-  private def subcriptions[F[_]: Sync: Concurrent](
+  private def subcriptions[F[_]: Concurrent](
     topic: Topic[F, Event],
     switch: concurrent.Deferred[F, Unit],
     accountsRepository: AccountsRepository[F],
@@ -42,7 +42,7 @@ trait BankFixture { self: AsyncFunSuiteLike =>
       )
       .interruptWhen(switch.get.attempt)
 
-  private def createBackend[F[_]: Sync: ConcurrentEffect: ContextShift](
+  private def createBackend[F[_]: ConcurrentEffect: ContextShift](
     topic: Topic[F, Event],
     eventStore: InMemoryEventStore[F],
     accountsRepository: AccountsRepository[F],
