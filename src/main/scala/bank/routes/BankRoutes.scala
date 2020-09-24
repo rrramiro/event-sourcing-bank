@@ -80,7 +80,7 @@ class BankRoutes[F[_]: Sync](
         accountsRepository.getAccounts(clientId) >>= (dto => Ok(dto.asJson))
     }
 
-  val routes: HttpRoutes[F] = HttpErrorHandler[F, AggregateError] { implicit R =>
+  val routes: HttpRoutes[F] = HttpErrorHandler[F, AggregateError] { implicit R: Raise[F, AggregateError] =>
     accountRoutes <+> clientRoutes <+> projections
   } {
     case AggregateVersionError => InternalServerError()
