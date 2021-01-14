@@ -8,8 +8,6 @@ import cats.effect._
 import fs2.concurrent.Topic
 import org.http4s.server.blaze._
 
-import scala.concurrent.ExecutionContext
-
 object MainApp extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
     val eventStore             = new InMemoryEventStore[IO]
@@ -35,7 +33,7 @@ object MainApp extends IOApp {
                       )
       _ <- (
                subscriptions concurrently BlazeServerBuilder[IO](
-                 ExecutionContext.global
+                 executionContext
                ).bindHttp(8080, "localhost")
                  .withHttpApp(bankRoutes(topic).router)
                  .serve

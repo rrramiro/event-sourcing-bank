@@ -58,6 +58,7 @@ object aggregates {
             )
         }
 
+    @SuppressWarnings(Array("org.wartremover.warts.ListAppend"))
     def applyNewEvent[F[_]: Applicative](agg: Agg, event: Event)(implicit F: Raise[F, AggregateError]): F[Agg] =
       if (event.eventId.version === agg.aggregateId.nextVersion)
         applyEvent(agg.state.pure[F], event).map { s =>

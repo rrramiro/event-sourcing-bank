@@ -1,7 +1,8 @@
 .idea
 .bloop
 .metals
-target
+.bsp
 .history
 .vscode
 metals.sbt
+target

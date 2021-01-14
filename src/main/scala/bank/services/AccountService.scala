@@ -23,7 +23,7 @@ class AccountService[F[_]: Concurrent](
   def load(id: UUID): ResultT[Account] =
     EitherT.right[AggregateError](eventStore.load(id)) >>= Account.load[ResultT](id)
 
-  def process(command: Command): ResultT[Account] =
+  def process(command: AccountCommand): ResultT[Account] =
     command match {
       case OpenAccountCommand(clientId) =>
         Account.open[ResultT](UUID.randomUUID(), clientId) >>= storeAndPublishEvents
