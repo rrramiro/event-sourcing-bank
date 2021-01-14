@@ -4,11 +4,13 @@ import java.util.UUID
 
 object commands {
 
-  trait Command
-  final case class OpenAccountCommand(clientId: UUID)                   extends Command
-  final case class DepositAccountCommand(id: UUID, amount: BigDecimal)  extends Command
-  final case class WithdrawAccountCommand(id: UUID, amount: BigDecimal) extends Command
+  sealed trait Command
+  sealed trait AccountCommand
+  sealed trait ClientCommand
+  final case class OpenAccountCommand(clientId: UUID)                   extends AccountCommand
+  final case class DepositAccountCommand(id: UUID, amount: BigDecimal)  extends AccountCommand
+  final case class WithdrawAccountCommand(id: UUID, amount: BigDecimal) extends AccountCommand
 
-  final case class EnrollClientCommand(name: String, email: Email)           extends Command
-  final case class UpdateClientCommand(id: UUID, name: String, email: Email) extends Command
+  final case class EnrollClientCommand(name: String, email: Email)           extends ClientCommand
+  final case class UpdateClientCommand(id: UUID, name: String, email: Email) extends ClientCommand
 }

@@ -17,7 +17,7 @@ class ClientService[F[_]: Sync](eventStore: EventStore[F]) {
   def load(id: UUID): ResultT[Client] =
     EitherT.right[AggregateError](eventStore.load(id)) >>= Client.load[ResultT](id)
 
-  def process(cmd: Command): ResultT[Client] =
+  def process(cmd: ClientCommand): ResultT[Client] =
     cmd match {
       case EnrollClientCommand(name, email) =>
         Client.enroll[ResultT](UUID.randomUUID(), name, email) >>= storeEvents

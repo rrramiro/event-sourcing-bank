@@ -2,6 +2,7 @@ package bank.model
 
 import java.time.ZonedDateTime
 import java.util.UUID
+import java.util.Locale
 
 import com.github.ghik.silencer.silent
 import io.circe.Codec
@@ -25,7 +26,7 @@ object projection {
 
     @silent
     private implicit val config: Configuration =
-      Configuration.default.copy(transformConstructorNames = _.toUpperCase)
+      Configuration.default.copy(transformConstructorNames = _.toUpperCase(Locale.getDefault()))
 
     @SuppressWarnings(Array("org.wartremover.warts.Equals"))
     implicit val codec: Codec[TransactionType] = deriveEnumerationCodec[TransactionType]

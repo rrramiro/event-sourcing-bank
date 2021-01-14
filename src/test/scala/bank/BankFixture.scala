@@ -8,11 +8,14 @@ import cats.effect._
 import cats.syntax.either._
 import cats.syntax.applicativeError._
 import fs2.concurrent.Topic
+import io.circe.Decoder
 import org.http4s.client.{Client => Http4sClient}
 import org.scalatest.Assertion
 import org.scalatest.funsuite.AsyncFunSuiteLike
-import sttp.client._
-import sttp.client.http4s.Http4sBackend
+import sttp.capabilities.fs2.Fs2Streams
+import sttp.client3._
+import sttp.client3.circe._
+import sttp.client3.http4s.Http4sBackend
 import sttp.model.StatusCode
 
 import scala.concurrent.ExecutionContext
@@ -47,7 +50,7 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     eventStore: InMemoryEventStore[F],
     accountsRepository: AccountsRepository[F],
     transactionsRepository: TransactionsRepository[F]
-  ): SttpBackend[F, fs2.Stream[F, Byte], NothingT] = {
+  ): SttpBackend[F, Fs2Streams[F]] = {
     val bankRoutes = new BankApp[F](
       new BankRoutes[F](
         new AccountService[F](eventStore, topic),
@@ -64,20 +67,14 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     )
   }
 
-  implicit class RequestTWrapper[E, T, +S](
-    requestT: RequestT[Identity, Either[E, T], S]
-  ) {
-    def call(implicit backend: SttpBackend[IO, S, NothingT]): IO[T] = // TODO [F[_]: Sync]
-      requestT
-        .send[IO]()
-        .map { resp =>
-          if (resp.code != StatusCode.Ok) fail(s"error code: ${resp.code}")
-          else resp.body.valueOr(error => fail(error.toString))
-        }
-  }
+  def asJsonOrFail[B: Decoder: IsOption]: ResponseAs[B, Any] =
+    asJson.mapWithMetadata { (body, meta) =>
+      if (meta.code != StatusCode.Ok) fail(s"error code: ${meta.code}")
+      else body.valueOr(error => fail(error.toString))
+    }
 
   def testApp(testName: String)(
-    f: SttpBackend[IO, fs2.Stream[IO, Byte], NothingT] => IO[Assertion]
+    f: SttpBackend[IO, Fs2Streams[IO]] => IO[Assertion]
   ): Unit =
     test(testName) {
       {
