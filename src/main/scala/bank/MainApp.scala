@@ -34,7 +34,7 @@ object MainApp extends IOApp {
       _ <- (
                subscriptions concurrently BlazeServerBuilder[IO](
                  executionContext
-               ).bindHttp(8080, "localhost")
+               ).bindHttp(8212, "localhost")
                  .withHttpApp(bankRoutes(topic).router)
                  .serve
            ).compile.drain
