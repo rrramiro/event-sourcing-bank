@@ -1,6 +1,16 @@
 FROM gitpod/workspace-full
 
-RUN rm /home/gitpod/.bashrc.d/99-java &&\
+USER root
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -yq \
+        dropbear &&\
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* &&\
+    curl https://i.jpillora.com/chisel! | bash
+
+USER gitpod
+
+RUN echo 'unset JAVA_TOOL_OPTIONS' >> /home/gitpod/.bashrc.d/99-clear-java-tool-options &&\
+    rm /home/gitpod/.bashrc.d/99-java &&\
     rm -rf /home/gitpod/.sdkman &&\
     curl -fLo ./cs https://git.io/coursier-cli-linux &&\
     chmod +x ./cs &&\
