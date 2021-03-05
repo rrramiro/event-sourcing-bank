@@ -5,17 +5,8 @@ tasks:
       source ~/.bashrc
     init: >
       sbt update
-  - name: TCP Tunnel
-    command: chisel server --socks5
-  - name: SSH Server
-    command: |
-      [ -f /workspace/dropbear.hostkey ] || dropbearkey -t rsa -f /workspace/dropbear.hostkey
-      dropbear -r /workspace/dropbear.hostkey -F -E -s -p 2222 -P ~/dropbear.pid
-  - command: |
-      mkdir -p ~/.ssh && echo -e "${SSH_KEY//_/\\n}" >> ~/.ssh/authorized_keys && chmod og-rwx ~/.ssh/authorized_keys
 ports:
   - port: 8212
-  - port: 2222
     onOpen: ignore
 vscode:
   extensions:
