@@ -9,18 +9,13 @@ import fs2.concurrent.Topic
 
 object Listeners {
 
-  def subscribeListeners[F[_]: Concurrent](
+  def subscribeListeners[F[_]: Async](
     eventsTopic: Topic[F, Event],
     accountsRepository: AccountsRepository[F],
     transactionsRepository: TransactionsRepository[F]
   ): fs2.Stream[F, Unit] = {
-    val events = eventsTopic.subscribe(10)
-    fs2
-      .Stream[F, fs2.Stream[F, Unit]](
-        events.through(accountsListener(accountsRepository)),
-        events.through(transactionsListener(transactionsRepository))
-      )
-      .parJoin(2)
+      eventsTopic.subscribe(10).through(accountsListener(accountsRepository)) concurrently
+        eventsTopic.subscribe(10).through(transactionsListener(transactionsRepository))
   }
 
   def accountsListener[F[_]: Sync](
@@ -28,6 +23,7 @@ object Listeners {
   ): Pipe[F, Event, Unit] =
     _.evalMap {
       case event: AccountOpenedEvent =>
+        println("a"*10)
         accountsRepository.save(
           AccountProjection(
             event.eventId.aggregateId,
@@ -37,18 +33,22 @@ object Listeners {
           )
         )
       case event: AccountDepositedEvent =>
+        println("b"*10)
         accountsRepository.updateBalance(
           event.eventId.aggregateId,
           event.balance,
           event.eventId.version
         )
       case event: AccountWithdrawnEvent =>
+        println("c"*10)
         accountsRepository.updateBalance(
           event.eventId.aggregateId,
           event.balance,
           event.eventId.version
         )
-      case _ => Sync[F].unit
+      case _ =>
+        println("d"*10)
+        Sync[F].unit
     }
 
   def transactionsListener[F[_]: Sync](
@@ -56,6 +56,7 @@ object Listeners {
   ): Pipe[F, Event, Unit] =
     _.evalMap {
       case event: AccountDepositedEvent =>
+        println("-"*10)
         transactionsRepository.save(
           TransactionProjection(
             event.eventId.aggregateId,
@@ -66,6 +67,7 @@ object Listeners {
           )
         )
       case event: AccountWithdrawnEvent =>
+        println("x"*10)
         transactionsRepository.save(
           TransactionProjection(
             event.eventId.aggregateId,
@@ -75,6 +77,8 @@ object Listeners {
             event.eventId.version
           )
         )
-      case _ => Sync[F].unit
+      case _ =>
+        println("i"*10)
+        Sync[F].unit
     }
 }

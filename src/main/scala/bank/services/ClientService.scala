@@ -1,8 +1,7 @@
 package bank.services
 
 import java.util.UUID
-
-import bank.model.aggregates.{AggregateError, Client}
+import bank.model.aggregates.{AggregateError, AggregateUnexpectedError, Client}
 import bank.model.commands._
 import bank.storage.EventStore
 import cats.effect.Sync
@@ -21,6 +20,7 @@ class ClientService[F[_]: Sync](eventStore: EventStore[F]) {
         Client.enroll[F](UUID.randomUUID(), name, email) >>= storeEvents
       case UpdateClientCommand(id, name, email) =>
         load(id) >>= Client.update[F](name, email) >>= storeEvents
+      case _ => F.raise(AggregateUnexpectedError)
     }
 
   private def storeEvents(client: Client): F[Client] =

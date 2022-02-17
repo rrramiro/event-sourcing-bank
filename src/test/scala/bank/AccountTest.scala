@@ -7,8 +7,8 @@ import bank.model.dto._
 import bank.model.projection.TransactionProjection
 import io.circe.generic.auto._
 import io.circe.syntax._
-import sttp.client._
-import sttp.client.circe._
+import sttp.client3._
+import sttp.client3.circe._
 import eu.timepit.refined.auto._
 import org.scalatest.funsuite.AsyncFunSuite
 
@@ -116,13 +116,13 @@ class AccountTest extends AsyncFunSuite with BankFixture {
                    .response(asJson[AccountDto])
                    .call
       deposit = DepositDto(initial.id, 15)
-      _ <- basicRequest
+      depositResult <- basicRequest
              .post(uri"http://localhost/api/accounts/${initial.id}/deposits")
              .body(deposit.asJson.toString())
              .response(asJson[AccountDto])
              .call
       withdrawal = DepositDto(initial.id, 5)
-      _ <- basicRequest
+      withdrawalResult <- basicRequest
              .post(uri"http://localhost/api/accounts/${initial.id}/withdrawals")
              .body(withdrawal.asJson.toString())
              .response(asJson[AccountDto])
@@ -134,6 +134,8 @@ class AccountTest extends AsyncFunSuite with BankFixture {
     } yield {
       assert(dto.name == client.name)
       assert(dto.email == client.email)
+      assert(depositResult.balance == deposit.amount)
+      assert(withdrawalResult.balance == (deposit.amount - withdrawal.amount))
       assert(actual.size == 2)
     }
   }

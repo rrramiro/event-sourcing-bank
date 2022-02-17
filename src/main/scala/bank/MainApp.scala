@@ -1,13 +1,12 @@
 package bank
 
-import bank.model.events.{Event, InitEvent}
+import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
 import bank.storage._
 import cats.effect._
 import fs2.concurrent.Topic
-import org.http4s.server.blaze._
-
+import org.http4s.blaze.server.BlazeServerBuilder
 import scala.concurrent.ExecutionContext
 
 object MainApp extends IOApp {
@@ -27,16 +26,18 @@ object MainApp extends IOApp {
       )
 
     for {
-      topic <- Topic[IO, Event](InitEvent)
+      topic <- Topic[IO, Event]
       subscriptions = Listeners.subscribeListeners(
                         topic,
                         accountsRepository,
                         transactionsRepository
                       )
       _ <- (
-               subscriptions concurrently BlazeServerBuilder[IO](
-                 ExecutionContext.global
-               ).bindHttp(8080, "localhost")
+               subscriptions concurrently BlazeServerBuilder[IO]
+                 .withExecutionContext(
+                   ExecutionContext.global
+                 )
+                 .bindHttp(8080, "localhost")
                  .withHttpApp(bankRoutes(topic).router)
                  .serve
            ).compile.drain

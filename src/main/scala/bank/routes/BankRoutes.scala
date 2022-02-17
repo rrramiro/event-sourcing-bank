@@ -5,7 +5,7 @@ import bank.model.commands._
 import bank.model.dto._
 import bank.services._
 import bank.storage._
-import cats.effect.Sync
+import cats.effect.Async
 import cats.mtl.Raise
 import cats.syntax.semigroupk._
 import cats.syntax.flatMap._
@@ -15,7 +15,7 @@ import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 
-class BankRoutes[F[_]: Sync](
+class BankRoutes[F[_]: Async](
   accountService: AccountService[F],
   clientService: ClientService[F],
   accountsRepository: AccountsRepository[F],
@@ -83,7 +83,8 @@ class BankRoutes[F[_]: Sync](
   val routes: HttpRoutes[F] = HttpErrorHandler[F, AggregateError] { implicit R: Raise[F, AggregateError] =>
     accountRoutes <+> clientRoutes <+> projections
   } {
-    case AggregateVersionError => InternalServerError()
-    case AggregateNotFound     => NotFound()
+    case AggregateNotFound        => NotFound()
+    case AggregateVersionError    => InternalServerError()
+    case AggregateUnexpectedError => InternalServerError()
   }
 }

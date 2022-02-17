@@ -7,8 +7,8 @@ import bank.model.dto._
 import bank.model.projection.AccountProjection
 import io.circe.generic.auto._
 import io.circe.syntax._
-import sttp.client._
-import sttp.client.circe._
+import sttp.client3._
+import sttp.client3.circe._
 import eu.timepit.refined.auto._
 import org.scalatest.funsuite.AsyncFunSuite
 

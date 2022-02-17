@@ -14,11 +14,11 @@ object events {
     aggregateId: UUID,
     timestamp: ZonedDateTime
   )
-
+/*
   case object InitEvent extends Event { //TODO remove ?
     override def eventId: EventId = EventId(-1, UUID.randomUUID(), ZonedDateTime.now())
   }
-
+*/
   final case class AccountDepositedEvent(
     amount: BigDecimal,
     balance: BigDecimal,

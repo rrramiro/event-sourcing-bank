@@ -13,9 +13,10 @@ import cats.mtl.Raise
 
 object aggregates {
 
-  sealed trait AggregateError       extends Throwable
-  case object AggregateNotFound     extends Exception with AggregateError
-  case object AggregateVersionError extends Exception with AggregateError
+  sealed trait AggregateError          extends Throwable
+  case object AggregateNotFound        extends Exception with AggregateError
+  case object AggregateVersionError    extends Exception with AggregateError
+  case object AggregateUnexpectedError extends Exception with AggregateError
 
   trait Aggregate[State] {
     def state: State

@@ -1,8 +1,7 @@
 package bank.services
 
 import java.util.UUID
-
-import bank.model.aggregates.{Account, AggregateError}
+import bank.model.aggregates.{Account, AggregateError, AggregateUnexpectedError}
 import bank.model.commands._
 import bank.model.events.Event
 import bank.storage.EventStore
@@ -29,6 +28,7 @@ class AccountService[F[_]: Concurrent](
         loadProcessStorePublish(id)(Account.withdrawn[F](amount))
       case DepositAccountCommand(id, amount) =>
         loadProcessStorePublish(id)(Account.deposit[F](amount))
+      case _ => G.raise(AggregateUnexpectedError)
     }
 
   private def loadProcessStorePublish(
@@ -41,7 +41,7 @@ class AccountService[F[_]: Concurrent](
       fs2
         .Stream(account.aggregateId.newEvents: _*)
         .covary[F]
-        .broadcastTo(eventsTopic.publish)
+        .broadcastThrough(eventsTopic.publish)
         .compile
         .drain
         .as(account)
