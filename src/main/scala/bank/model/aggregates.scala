@@ -9,7 +9,7 @@ import zio.IO
 
 object aggregates {
 
-  sealed trait AggregateError          extends Throwable
+  sealed trait AggregateError          extends BankError
   case object AggregateNotFound        extends Exception with AggregateError
   case object AggregateVersionError    extends Exception with AggregateError
   case object AggregateUnexpectedError extends Exception with AggregateError

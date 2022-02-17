@@ -3,7 +3,7 @@ package bank.storage
 import java.util.UUID
 import bank.model.projection.AccountProjection
 import cats.syntax.option._
-import zio.Task
+import zio.{Task, UIO}
 
 import scala.collection.concurrent.TrieMap
 
@@ -12,13 +12,13 @@ class InMemoryAccountsRepository extends AccountsRepository {
     TrieMap.empty[UUID, Map[UUID, AccountProjection]]
   private val accountClientIndex = TrieMap.empty[UUID, UUID]
 
-  override def save(accountProjection: AccountProjection): Task[Unit] =
-    Task {
+  override def save(accountProjection: AccountProjection): UIO[Unit] =
+    UIO {
       val value = Map(accountProjection.accountId -> accountProjection)
       clientAccounts.updateWith(accountProjection.clientId)(
         _.fold(value)(_ ++ value).some
       )
-    } *> Task {
+    } *> UIO {
       accountClientIndex
         .put(accountProjection.accountId, accountProjection.clientId)
     }.as(())
