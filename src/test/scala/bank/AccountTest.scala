@@ -117,16 +117,16 @@ class AccountTest extends AsyncFunSuite with BankFixture {
                    .call
       deposit = DepositDto(initial.id, 15)
       depositResult <- basicRequest
-             .post(uri"http://localhost/api/accounts/${initial.id}/deposits")
-             .body(deposit.asJson.toString())
-             .response(asJson[AccountDto])
-             .call
+                         .post(uri"http://localhost/api/accounts/${initial.id}/deposits")
+                         .body(deposit.asJson.toString())
+                         .response(asJson[AccountDto])
+                         .call
       withdrawal = DepositDto(initial.id, 5)
       withdrawalResult <- basicRequest
-             .post(uri"http://localhost/api/accounts/${initial.id}/withdrawals")
-             .body(withdrawal.asJson.toString())
-             .response(asJson[AccountDto])
-             .call
+                            .post(uri"http://localhost/api/accounts/${initial.id}/withdrawals")
+                            .body(withdrawal.asJson.toString())
+                            .response(asJson[AccountDto])
+                            .call
       actual <- basicRequest
                   .get(uri"http://localhost/api/accounts/${initial.id}/transactions")
                   .response(asJson[List[TransactionProjection]])

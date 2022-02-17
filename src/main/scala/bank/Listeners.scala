@@ -3,27 +3,37 @@ package bank
 import bank.model.events._
 import bank.model.projection._
 import bank.storage._
-import cats.effect._
-import fs2.Pipe
-import fs2.concurrent.Topic
-
+import zio.{Hub, Task}
+import zio.interop.catz._
+import zio.interop.catz.implicits._
+import zio.stream._
+import zio.interop.reactivestreams._
+import fs2.interop.reactivestreams._
 object Listeners {
 
-  def subscribeListeners[F[_]: Async](
-    eventsTopic: Topic[F, Event],
-    accountsRepository: AccountsRepository[F],
-    transactionsRepository: TransactionsRepository[F]
-  ): fs2.Stream[F, Unit] = {
-      eventsTopic.subscribe(10).through(accountsListener(accountsRepository)) concurrently
-        eventsTopic.subscribe(10).through(transactionsListener(transactionsRepository))
-  }
+  def subscribeListeners(
+    eventsTopic: Hub[Event],
+    accountsRepository: AccountsRepository,
+    transactionsRepository: TransactionsRepository
+  ): Task[fs2.Stream[Task, Unit]] =
+    for {
+      a <- ZStream
+             .fromHub(eventsTopic, 10)
+             .mapZIO(accountsListener(accountsRepository))
+             .toPublisher
+             .map(_.toStreamBuffered[Task](10))
+      b <- ZStream
+             .fromHub(eventsTopic, 10)
+             .mapZIO(transactionsListener(transactionsRepository))
+             .toPublisher
+             .map(_.toStreamBuffered[Task](10))
+    } yield a.concurrently(b)
 
-  def accountsListener[F[_]: Sync](
-    accountsRepository: AccountsRepository[F]
-  ): Pipe[F, Event, Unit] =
-    _.evalMap {
+  def accountsListener(
+    accountsRepository: AccountsRepository
+  )(even: Event): Task[Unit] =
+    even match {
       case event: AccountOpenedEvent =>
-        println("a"*10)
         accountsRepository.save(
           AccountProjection(
             event.eventId.aggregateId,
@@ -33,30 +43,26 @@ object Listeners {
           )
         )
       case event: AccountDepositedEvent =>
-        println("b"*10)
         accountsRepository.updateBalance(
           event.eventId.aggregateId,
           event.balance,
           event.eventId.version
         )
       case event: AccountWithdrawnEvent =>
-        println("c"*10)
         accountsRepository.updateBalance(
           event.eventId.aggregateId,
           event.balance,
           event.eventId.version
         )
       case _ =>
-        println("d"*10)
-        Sync[F].unit
+        Task.unit
     }
 
-  def transactionsListener[F[_]: Sync](
-    transactionsRepository: TransactionsRepository[F]
-  ): Pipe[F, Event, Unit] =
-    _.evalMap {
+  def transactionsListener(
+    transactionsRepository: TransactionsRepository
+  )(even: Event): Task[Unit] =
+    even match {
       case event: AccountDepositedEvent =>
-        println("-"*10)
         transactionsRepository.save(
           TransactionProjection(
             event.eventId.aggregateId,
@@ -67,7 +73,6 @@ object Listeners {
           )
         )
       case event: AccountWithdrawnEvent =>
-        println("x"*10)
         transactionsRepository.save(
           TransactionProjection(
             event.eventId.aggregateId,
@@ -78,7 +83,6 @@ object Listeners {
           )
         )
       case _ =>
-        println("i"*10)
-        Sync[F].unit
+        Task.unit
     }
 }

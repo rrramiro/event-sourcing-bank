@@ -5,44 +5,36 @@ import bank.model.aggregates.{Account, AggregateError, AggregateUnexpectedError}
 import bank.model.commands._
 import bank.model.events.Event
 import bank.storage.EventStore
-import cats.effect._
-import cats.mtl.Raise
-import cats.syntax.flatMap._
-import cats.syntax.functor._
-import cats.syntax.apply._
-import fs2.concurrent.Topic
+import zio.{Hub, IO, Task, ZIO}
 
-class AccountService[F[_]: Concurrent](
-  eventStore: EventStore[F],
-  eventsTopic: Topic[F, Event]
+class AccountService(
+  eventStore: EventStore,
+  eventsTopic: Hub[Event]
 ) {
 
-  def load(id: UUID)(implicit G: Raise[F, AggregateError]): F[Account] =
-    eventStore.load(id) >>= Account.load[F](id)
+  def load(id: UUID): Task[Account] =
+    eventStore.load(id) flatMap Account.load(id)
 
-  def process(command: Command)(implicit G: Raise[F, AggregateError]): F[Account] =
+  def process(command: Command): Task[Account] =
     command match {
       case OpenAccountCommand(clientId) =>
-        Account.open[F](UUID.randomUUID(), clientId) >>= storeAndPublishEvents
+        Account.open(UUID.randomUUID(), clientId) flatMap storeAndPublishEvents
       case WithdrawAccountCommand(id, amount) =>
-        loadProcessStorePublish(id)(Account.withdrawn[F](amount))
+        loadProcessStorePublish(id)(Account.withdrawn(amount))
       case DepositAccountCommand(id, amount) =>
-        loadProcessStorePublish(id)(Account.deposit[F](amount))
-      case _ => G.raise(AggregateUnexpectedError)
+        loadProcessStorePublish(id)(Account.deposit(amount))
+      case _ => IO.fail(AggregateUnexpectedError)
     }
 
   private def loadProcessStorePublish(
     id: UUID
-  )(f: Account => F[Account])(implicit G: Raise[F, AggregateError]): F[Account] =
-    load(id) >>= f >>= storeAndPublishEvents
+  )(f: Account => IO[AggregateError, Account]): Task[Account] =
+    load(id) flatMap f flatMap storeAndPublishEvents
 
-  private def storeAndPublishEvents(account: Account): F[Account] =
-    eventStore.store(account.aggregateId) *>
-      fs2
-        .Stream(account.aggregateId.newEvents: _*)
-        .covary[F]
-        .broadcastThrough(eventsTopic.publish)
-        .compile
-        .drain
-        .as(account)
+  private def storeAndPublishEvents(account: Account): Task[Account] =
+    eventStore.store(account.aggregateId) *> ZIO
+      .collectAll(
+        account.aggregateId.newEvents.map(eventsTopic.publish)
+      )
+      .as(account)
 }

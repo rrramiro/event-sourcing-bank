@@ -5,22 +5,22 @@ import bank.model.commands._
 import bank.model.dto._
 import bank.services._
 import bank.storage._
-import cats.effect.Async
-import cats.mtl.Raise
 import cats.syntax.semigroupk._
-import cats.syntax.flatMap._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
+import zio.Task
+import zio.interop.catz._
+import zio.interop.catz.implicits._
 
-class BankRoutes[F[_]: Async](
-  accountService: AccountService[F],
-  clientService: ClientService[F],
-  accountsRepository: AccountsRepository[F],
-  transactionsRepository: TransactionsRepository[F]
-) extends Http4sDsl[F] {
+class BankRoutes(
+  accountService: AccountService,
+  clientService: ClientService,
+  accountsRepository: AccountsRepository,
+  transactionsRepository: TransactionsRepository
+) extends Http4sDsl[Task] {
 
   implicit class AccountOps(account: Account) {
     def toDto: AccountDto =
@@ -40,47 +40,47 @@ class BankRoutes[F[_]: Async](
       )
   }
 
-  def accountRoutes(implicit R: Raise[F, AggregateError]): HttpRoutes[F] =
-    HttpRoutes.of[F] {
+  def accountRoutes: HttpRoutes[Task] =
+    HttpRoutes.of[Task] {
       case req @ POST -> Root / "accounts" =>
-        req.as[AccountDto] >>= (dto => accountService.process(OpenAccountCommand(dto.clientId))) >>= (account =>
+        req.as[AccountDto] flatMap (dto => accountService.process(OpenAccountCommand(dto.clientId))) flatMap (account =>
           Ok(account.toDto.asJson)
         )
       case GET -> Root / "accounts" / UUIDVar(uuid) =>
-        accountService.load(uuid) >>= (account => Ok(account.toDto.asJson))
+        accountService.load(uuid) flatMap (account => Ok(account.toDto.asJson))
       case req @ POST -> Root / "accounts" / UUIDVar(uuid) / "deposits" =>
-        req.as[DepositDto] >>= (dto => accountService.process(DepositAccountCommand(uuid, dto.amount))) >>= (account =>
-          Ok(account.toDto.asJson)
+        req.as[DepositDto] flatMap (dto => accountService.process(DepositAccountCommand(uuid, dto.amount))) flatMap (
+          account => Ok(account.toDto.asJson)
         )
       case req @ POST -> Root / "accounts" / UUIDVar(uuid) / "withdrawals" =>
-        req.as[DepositDto] >>= (dto => accountService.process(WithdrawAccountCommand(uuid, dto.amount))) >>= (account =>
-          Ok(account.toDto.asJson)
+        req.as[DepositDto] flatMap (dto => accountService.process(WithdrawAccountCommand(uuid, dto.amount))) flatMap (
+          account => Ok(account.toDto.asJson)
         )
     }
 
-  def clientRoutes(implicit R: Raise[F, AggregateError]): HttpRoutes[F] =
-    HttpRoutes.of[F] {
+  def clientRoutes: HttpRoutes[Task] =
+    HttpRoutes.of[Task] {
       case req @ POST -> Root / "clients" =>
-        req.as[ClientDto] >>= (dto => clientService.process(EnrollClientCommand(dto.name, dto.email))) >>= (client =>
-          Ok(client.toDto.asJson)
-        )
-      case GET -> Root / "clients" / UUIDVar(uuid) =>
-        clientService.load(uuid) >>= (client => Ok(client.toDto.asJson))
-      case req @ PUT -> Root / "clients" / UUIDVar(uuid) =>
-        req.as[ClientDto] >>= (dto => clientService.process(UpdateClientCommand(uuid, dto.name, dto.email))) >>= (
+        req.as[ClientDto] flatMap (dto => clientService.process(EnrollClientCommand(dto.name, dto.email))) flatMap (
           client => Ok(client.toDto.asJson)
         )
+      case GET -> Root / "clients" / UUIDVar(uuid) =>
+        clientService.load(uuid) flatMap (client => Ok(client.toDto.asJson))
+      case req @ PUT -> Root / "clients" / UUIDVar(uuid) =>
+        req.as[ClientDto] flatMap (dto =>
+          clientService.process(UpdateClientCommand(uuid, dto.name, dto.email))
+        ) flatMap (client => Ok(client.toDto.asJson))
     }
 
-  val projections: HttpRoutes[F] =
-    HttpRoutes.of[F] {
+  val projections: HttpRoutes[Task] =
+    HttpRoutes.of[Task] {
       case GET -> Root / "accounts" / UUIDVar(accountId) / "transactions" =>
-        transactionsRepository.listByAccount(accountId) >>= (dto => Ok(dto.asJson))
+        transactionsRepository.listByAccount(accountId) flatMap (dto => Ok(dto.asJson))
       case GET -> Root / "clients" / UUIDVar(clientId) / "accounts" =>
-        accountsRepository.getAccounts(clientId) >>= (dto => Ok(dto.asJson))
+        accountsRepository.getAccounts(clientId) flatMap (dto => Ok(dto.asJson))
     }
 
-  val routes: HttpRoutes[F] = HttpErrorHandler[F, AggregateError] { implicit R: Raise[F, AggregateError] =>
+  val routes: HttpRoutes[Task] = HttpErrorHandler[AggregateError] {
     accountRoutes <+> clientRoutes <+> projections
   } {
     case AggregateNotFound        => NotFound()

@@ -1,28 +1,25 @@
 package bank.services
 
 import java.util.UUID
-import bank.model.aggregates.{AggregateError, AggregateUnexpectedError, Client}
+import bank.model.aggregates.{AggregateUnexpectedError, Client}
 import bank.model.commands._
 import bank.storage.EventStore
-import cats.effect.Sync
-import cats.mtl.Raise
-import cats.syntax.flatMap._
-import cats.syntax.functor._
+import zio.{IO, Task}
 
-class ClientService[F[_]: Sync](eventStore: EventStore[F]) {
+class ClientService(eventStore: EventStore) {
 
-  def load(id: UUID)(implicit F: Raise[F, AggregateError]): F[Client] =
-    eventStore.load(id) >>= Client.load[F](id)
+  def load(id: UUID): Task[Client] =
+    eventStore.load(id) flatMap Client.load(id)
 
-  def process(cmd: Command)(implicit F: Raise[F, AggregateError]): F[Client] =
+  def process(cmd: Command): Task[Client] =
     cmd match {
       case EnrollClientCommand(name, email) =>
-        Client.enroll[F](UUID.randomUUID(), name, email) >>= storeEvents
+        Client.enroll(UUID.randomUUID(), name, email) flatMap storeEvents
       case UpdateClientCommand(id, name, email) =>
-        load(id) >>= Client.update[F](name, email) >>= storeEvents
-      case _ => F.raise(AggregateUnexpectedError)
+        load(id) flatMap Client.update(name, email) flatMap storeEvents
+      case _ => IO.fail(AggregateUnexpectedError)
     }
 
-  private def storeEvents(client: Client): F[Client] =
+  private def storeEvents(client: Client): Task[Client] =
     eventStore.store(client.aggregateId).as(client)
 }

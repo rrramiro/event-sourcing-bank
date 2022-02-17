@@ -4,36 +4,39 @@ import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
 import bank.storage._
-import cats.effect._
-import fs2.concurrent.Topic
+import zio._
+import zio.interop.catz._
 import org.http4s.blaze.server.BlazeServerBuilder
+import zio.interop.catz.implicits._
+
 import scala.concurrent.ExecutionContext
 
-object MainApp extends IOApp {
-  override def run(args: List[String]): IO[ExitCode] = {
-    val eventStore             = new InMemoryEventStore[IO]
-    val transactionsRepository = new InMemoryTransactionsRepository[IO]
-    val accountsRepository     = new InMemoryAccountsRepository[IO]
+object MainApp extends ZIOAppDefault {
 
-    def bankRoutes(topic: Topic[IO, Event]) =
-      new BankApp[IO](
-        new BankRoutes[IO](
-          new AccountService[IO](eventStore, topic),
-          new ClientService[IO](eventStore),
+  override def run: URIO[ZEnv, ExitCode] = {
+    val eventStore             = new InMemoryEventStore
+    val transactionsRepository = new InMemoryTransactionsRepository
+    val accountsRepository     = new InMemoryAccountsRepository
+
+    def bankRoutes(topic: Hub[Event]) =
+      new BankApp(
+        new BankRoutes(
+          new AccountService(eventStore, topic),
+          new ClientService(eventStore),
           accountsRepository,
           transactionsRepository
         ).routes
       )
 
     for {
-      topic <- Topic[IO, Event]
-      subscriptions = Listeners.subscribeListeners(
-                        topic,
-                        accountsRepository,
-                        transactionsRepository
-                      )
+      topic <- ZHub.bounded[Event](10)
+      subscriptions <- Listeners.subscribeListeners(
+                         topic,
+                         accountsRepository,
+                         transactionsRepository
+                       )
       _ <- (
-               subscriptions concurrently BlazeServerBuilder[IO]
+               subscriptions concurrently BlazeServerBuilder[Task]
                  .withExecutionContext(
                    ExecutionContext.global
                  )
@@ -42,6 +45,9 @@ object MainApp extends IOApp {
                  .serve
            ).compile.drain
     } yield ()
-  }.as(ExitCode.Success)
+  }.either.map {
+    case Left(_)  => ExitCode.failure
+    case Right(_) => ExitCode.success
+  }
 
 }

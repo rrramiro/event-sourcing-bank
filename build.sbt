@@ -12,14 +12,19 @@ val sttpVersion     = "3.5.0"
 val refinedVersion  = "0.9.28"
 val silencerVersion = "1.7.8"
 val catsVersion     = "2.7.0"
+val zioVersion      = "1.0.13"
 
 libraryDependencies ++= Seq(
-  "org.typelevel"                %% "cats-mtl"             % "1.2.1",
+  "dev.zio"                      %% "zio"                  % zioVersion,
+  "dev.zio"                      %% "zio-streams"          % zioVersion,
+  "dev.zio"                      %% "zio-interop-reactivestreams"          % "2.0.0-RC3",
+  "dev.zio"                      %% "zio-interop-cats"     % "3.3.0-RC2",
+  //"org.typelevel"                %% "cats-mtl"             % "1.2.1",
   "org.typelevel"                %% "cats-core"            % catsVersion,
   "org.typelevel"                %% "cats-effect"          % "3.3.5",
   "org.typelevel"                %% "cats-kernel"          % catsVersion,
   "eu.timepit"                   %% "refined"              % refinedVersion,
-  "eu.timepit"                   %% "refined-cats"         % refinedVersion,
+  //"eu.timepit"                   %% "refined-cats"         % refinedVersion,
   "org.http4s"                   %% "http4s-core"          % http4sVersion,
   "org.http4s"                   %% "http4s-server"        % http4sVersion,
   "org.http4s"                   %% "http4s-dsl"           % http4sVersion,
@@ -36,7 +41,7 @@ libraryDependencies ++= Seq(
   "com.softwaremill.sttp.client3" %% "core"                 % sttpVersion % Test,
   "com.softwaremill.sttp.client3" %% "http4s-backend"       % sttpVersion % Test,
   "com.softwaremill.sttp.client3" %% "circe"                % sttpVersion,
-  "com.chuusai"                  %% "shapeless"            % "2.3.8",
+  //"com.chuusai"                  %% "shapeless"            % "2.3.8",
   "com.github.ghik"               % "silencer-lib"         % silencerVersion     % "provided" cross CrossVersion.full,
   "ch.qos.logback"                % "logback-classic"      % "1.2.10",
   compilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.1"),

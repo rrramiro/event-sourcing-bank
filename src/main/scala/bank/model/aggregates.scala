@@ -2,14 +2,10 @@ package bank.model
 
 import java.time.ZonedDateTime
 import java.util.UUID
-
 import bank.model.events._
-import cats.Applicative
-import cats.syntax.applicative._
 import cats.syntax.eq._
-import cats.syntax.functor._
 import cats.instances.int._
-import cats.mtl.Raise
+import zio.IO
 
 object aggregates {
 
@@ -35,16 +31,16 @@ object aggregates {
 
     def apply(state: State, aggregateId: AggregateId): Agg
 
-    def applyEvent[F[_]: Applicative](
-      accountState: F[State],
+    def applyEvent(
+      accountState: IO[AggregateError, State],
       event: Event
-    ): F[State]
+    ): IO[AggregateError, State]
 
-    def load[F[_]: Applicative](
+    def load(
       id: UUID
-    )(eventStream: List[Event])(implicit F: Raise[F, AggregateError]): F[Agg] =
+    )(eventStream: List[Event]): IO[AggregateError, Agg] =
       eventStream
-        .foldLeft(F.raise[AggregateError, (State, Int)](AggregateNotFound)) {
+        .foldLeft(IO.fail(AggregateNotFound): IO[AggregateError, (State, Int)]) {
           case (s, e) => applyEvent(s.map(_._1), e).map(_ -> e.eventId.version)
         }
         .map {
@@ -59,9 +55,9 @@ object aggregates {
             )
         }
 
-    def applyNewEvent[F[_]: Applicative](agg: Agg, event: Event)(implicit F: Raise[F, AggregateError]): F[Agg] =
+    def applyNewEvent(agg: Agg, event: Event): IO[AggregateError, Agg] =
       if (event.eventId.version === agg.aggregateId.nextVersion)
-        applyEvent(agg.state.pure[F], event).map { s =>
+        applyEvent(IO.succeed(agg.state), event).map { s =>
           apply(
             s,
             agg.aggregateId.copy(newEvents =
@@ -69,7 +65,7 @@ object aggregates {
             )
           )
         }
-      else F.raise(AggregateVersionError)
+      else IO.fail(AggregateVersionError)
   }
 
   final case class AccountState(balance: BigDecimal, clientId: UUID)
@@ -81,8 +77,8 @@ object aggregates {
 
   object Account extends AggregateCompanion[AccountState, Account] {
 
-    def open[F[_]: Applicative](id: UUID, clientId: UUID)(implicit F: Raise[F, AggregateError]): F[Account] =
-      applyNewEvent[F](
+    def open(id: UUID, clientId: UUID): IO[AggregateError, Account] =
+      applyNewEvent(
         Account(
           AccountState(BigDecimal(0), clientId),
           AggregateId(id, 0, List.empty)
@@ -94,9 +90,9 @@ object aggregates {
         )
       )
 
-    def withdrawn[F[_]: Applicative](
+    def withdrawn(
       amount: BigDecimal
-    )(account: Account)(implicit F: Raise[F, AggregateError]): F[Account] =
+    )(account: Account): IO[AggregateError, Account] =
       applyNewEvent(
         account,
         AccountWithdrawnEvent(
@@ -110,9 +106,9 @@ object aggregates {
         )
       )
 
-    def deposit[F[_]: Applicative](
+    def deposit(
       amount: BigDecimal
-    )(account: Account)(implicit F: Raise[F, AggregateError]): F[Account] =
+    )(account: Account): IO[AggregateError, Account] =
       applyNewEvent(
         account,
         AccountDepositedEvent(
@@ -126,10 +122,10 @@ object aggregates {
         )
       )
 
-    def applyEvent[F[_]: Applicative](accountState: F[AccountState], event: Event): F[AccountState] =
+    def applyEvent(accountState: IO[AggregateError, AccountState], event: Event): IO[AggregateError, AccountState] =
       event match {
         case AccountOpenedEvent(clientId, balance, _) =>
-          AccountState(clientId = clientId, balance = balance).pure
+          IO.succeed(AccountState(clientId = clientId, balance = balance))
         case AccountDepositedEvent(_, balance, _) =>
           accountState.map(_.copy(balance = balance))
         case AccountWithdrawnEvent(_, balance, _) =>
@@ -147,19 +143,19 @@ object aggregates {
   ) extends Aggregate[ClientState]
 
   object Client extends AggregateCompanion[ClientState, Client] {
-    def enroll[F[_]: Applicative](
+    def enroll(
       id: UUID,
       name: String,
       email: Email
-    )(implicit F: Raise[F, AggregateError]): F[Client] =
+    ): IO[AggregateError, Client] =
       applyNewEvent(
         Client(ClientState(name, email), AggregateId(id, 0, List.empty)),
         ClientEnrolledEvent(name, email, EventId(1, id, ZonedDateTime.now()))
       )
 
-    def update[F[_]: Applicative](name: String, email: Email)(
+    def update(name: String, email: Email)(
       client: Client
-    )(implicit F: Raise[F, AggregateError]): F[Client] =
+    ): IO[AggregateError, Client] =
       applyNewEvent(
         client,
         ClientUpdatedEvent(
@@ -173,13 +169,13 @@ object aggregates {
         )
       )
 
-    def applyEvent[F[_]: Applicative](
-      accountState: F[ClientState],
+    def applyEvent(
+      accountState: IO[AggregateError, ClientState],
       event: Event
-    ): F[ClientState] =
+    ): IO[AggregateError, ClientState] =
       event match {
         case ClientEnrolledEvent(name, email, _) =>
-          ClientState(name, email).pure
+          IO.succeed(ClientState(name, email))
         case ClientUpdatedEvent(name, email, _) =>
           accountState.map(_.copy(name = name, email = email))
         case _ => accountState
