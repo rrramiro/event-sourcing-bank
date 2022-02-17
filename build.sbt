@@ -2,22 +2,23 @@ name := "event-sourcing-bank"
 
 version := "0.0.1"
 
-scalaVersion := "2.13.4"
+scalaVersion := "2.13.5"
 
-val http4sVersion   = "0.21.15"
+val http4sVersion   = "0.21.20"
 val circeVersion    = "0.13.0"
-val fs2Version      = "2.5.0"
+val fs2Version      = "2.5.3"
 val monixVersion    = "3.2.2"
-val sttpVersion     = "3.0.0"
-val refinedVersion  = "0.9.20"
-val silencerVersion = "1.7.1"
-val catsVersion     = "2.3.1"
+val sttpVersion     = "3.1.7"
+val refinedVersion  = "0.9.21"
+val silencerVersion = "1.7.3"
+val catsEffectVersion  = "2.3.3"
+val catsVersion        = "2.4.2"
 
 libraryDependencies ++= Seq(
-  "org.typelevel"                %% "cats-mtl"             % "1.1.1",
+  "org.typelevel"                %% "cats-mtl"             % "1.1.2",
   "org.typelevel"                %% "cats-core"            % catsVersion,
-  "org.typelevel"                %% "cats-effect"          % catsVersion,
   "org.typelevel"                %% "cats-kernel"          % catsVersion,
+  "org.typelevel"                %% "cats-effect"          % catsEffectVersion,
   "eu.timepit"                   %% "refined"              % refinedVersion,
   "eu.timepit"                   %% "refined-cats"         % refinedVersion,
   "org.http4s"                   %% "http4s-core"          % http4sVersion,
@@ -32,7 +33,7 @@ libraryDependencies ++= Seq(
   "io.circe"                     %% "circe-generic-extras" % circeVersion,
   "co.fs2"                       %% "fs2-reactive-streams" % fs2Version,
   "co.fs2"                       %% "fs2-core"             % fs2Version,
-  "org.scalatest"                %% "scalatest"            % "3.2.3"     % Test,
+  "org.scalatest"                %% "scalatest"            % "3.2.5"     % Test,
   "com.softwaremill.sttp.client3" %% "core"                 % sttpVersion % Test,
   "com.softwaremill.sttp.client3" %% "http4s-backend"       % sttpVersion % Test,
   "com.softwaremill.sttp.client3" %% "circe"                % sttpVersion,
@@ -40,7 +41,7 @@ libraryDependencies ++= Seq(
   "com.github.ghik"               % "silencer-lib"         % silencerVersion     % "provided" cross CrossVersion.full,
   "ch.qos.logback"                % "logback-classic"      % "1.2.3",
   compilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.1"),
-  compilerPlugin("org.typelevel"  %% "kind-projector"     % "0.11.2" cross CrossVersion.full),
+  compilerPlugin("org.typelevel"  %% "kind-projector"     % "0.11.3" cross CrossVersion.full),
   compilerPlugin("io.tryp"         % "splain"             % "0.5.8" cross CrossVersion.patch),
   compilerPlugin("com.github.ghik" % "silencer-plugin"    % silencerVersion cross CrossVersion.full)
 )
