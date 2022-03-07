@@ -1,7 +1,7 @@
 package bank
 
 import bank.model.events.Event
-import bank.routes.{BankApp, BankRoutes}
+import bank.routes.BankApi
 import bank.services._
 import bank.storage._
 import zio._
@@ -18,14 +18,12 @@ object MainApp extends ZIOAppDefault {
     val transactionsRepository = new InMemoryTransactionsRepository
     val accountsRepository     = new InMemoryAccountsRepository
 
-    def bankRoutes(topic: Hub[Event]) =
-      new BankApp(
-        new BankRoutes(
-          new AccountService(eventStore, topic),
-          new ClientService(eventStore),
-          accountsRepository,
-          transactionsRepository
-        ).routes
+    def bankApi(topic: Hub[Event]) =
+      new BankApi(
+        new AccountService(eventStore, topic),
+        new ClientService(eventStore),
+        accountsRepository,
+        transactionsRepository
       )
 
     for {
@@ -35,13 +33,14 @@ object MainApp extends ZIOAppDefault {
                          accountsRepository,
                          transactionsRepository
                        )
+      api = bankApi(topic)
       _ <- (
                subscriptions concurrently BlazeServerBuilder[Task]
                  .withExecutionContext(
                    ExecutionContext.global
                  )
                  .bindHttp(8080, "localhost")
-                 .withHttpApp(bankRoutes(topic).router)
+                 .withHttpApp(api.httpApp)
                  .serve
            ).compile.drain
     } yield ()

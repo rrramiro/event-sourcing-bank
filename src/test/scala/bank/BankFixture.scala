@@ -1,7 +1,7 @@
 package bank
 
 import bank.model.events.Event
-import bank.routes.{BankApp, BankRoutes}
+import bank.routes.BankApi
 import bank.services._
 import bank.storage._
 import cats.effect.Resource
@@ -49,17 +49,17 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     accountsRepository: AccountsRepository,
     transactionsRepository: TransactionsRepository
   ) = {
-    val bankRoutes = new BankApp(
-      new BankRoutes(
+    val bankRoutes =
+      new BankApi(
         new AccountService(eventStore, topic),
         new ClientService(eventStore),
         accountsRepository,
         transactionsRepository
-      ).routes
-    )
+      )
+
     Http4sBackend.usingClient[Task](
       Http4sClient.fromHttpApp[Task](
-        bankRoutes.router
+        bankRoutes.httpApp
       )
     )
   }
