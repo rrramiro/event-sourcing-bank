@@ -42,7 +42,7 @@ class AccountService[F[_]: Concurrent](
         fs2
           .Stream(account.aggregateId.newEvents: _*)
           .covary[F]
-          .broadcastTo(eventsTopic.publish)
+          .broadcastThrough(eventsTopic.publish)
           .compile
           .drain
           .as(account)

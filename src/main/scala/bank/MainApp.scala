@@ -5,8 +5,9 @@ import bank.routes.{BankApp, BankRoutes}
 import bank.services._
 import bank.storage._
 import cats.effect._
+import com.comcast.ip4s._
 import fs2.concurrent.Topic
-import org.http4s.server.blaze._
+import org.http4s.ember.server.EmberServerBuilder
 
 object MainApp extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
@@ -25,19 +26,27 @@ object MainApp extends IOApp {
       )
 
     for {
-      topic <- Topic[IO, Event](InitEvent)
+      topic <- Topic[IO, Event]
+      _     <- topic.publish1(InitEvent)
       subscriptions = Listeners.subscribeListeners(
                         topic,
                         accountsRepository,
                         transactionsRepository
                       )
-      _ <- (
-               subscriptions concurrently BlazeServerBuilder[IO](
-                 executionContext
-               ).bindHttp(8212, "localhost")
-                 .withHttpApp(bankRoutes(topic).router)
-                 .serve
-           ).compile.drain
+      _ <- subscriptions
+             .concurrently(
+               fs2.Stream.eval(
+                 EmberServerBuilder
+                   .default[IO]
+                   .withHost(ipv4"0.0.0.0")
+                   .withPort(port"8212")
+                   .withHttpApp(bankRoutes(topic).router)
+                   .build
+                   .use(_ => IO.never)
+               )
+             )
+             .compile
+             .drain
     } yield ()
   }.as(ExitCode.Success)
 

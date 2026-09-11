@@ -9,7 +9,7 @@ import fs2.concurrent.Topic
 
 object Listeners {
 
-  def subscribeListeners[F[_]: Concurrent](
+  def subscribeListeners[F[_]: Async](
     eventsTopic: Topic[F, Event],
     accountsRepository: AccountsRepository[F],
     transactionsRepository: TransactionsRepository[F]

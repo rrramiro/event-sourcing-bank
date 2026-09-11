@@ -6,7 +6,7 @@ import bank.model.dto._
 import bank.services._
 import bank.storage._
 import cats.data._
-import cats.effect.Sync
+import cats.effect.Concurrent
 import cats.syntax.semigroupk._
 import cats.syntax.flatMap._
 import io.circe.generic.auto._
@@ -15,7 +15,7 @@ import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 
-class BankRoutes[F[_]: Sync](
+class BankRoutes[F[_]: Concurrent](
   accountService: AccountService[F],
   clientService: ClientService[F],
   accountsRepository: AccountsRepository[F],

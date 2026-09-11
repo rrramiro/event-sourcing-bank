@@ -6,7 +6,6 @@ import bank.services._
 import bank.storage._
 import cats.effect._
 import cats.syntax.either._
-import cats.syntax.applicativeError._
 import fs2.concurrent.Topic
 import io.circe.Decoder
 import org.http4s.client.{Client => Http4sClient}
@@ -17,23 +16,15 @@ import sttp.client3._
 import sttp.client3.circe._
 import sttp.client3.http4s.Http4sBackend
 import sttp.model.StatusCode
-
-import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
+import cats.effect.unsafe.implicits.global
 
 trait BankFixture { self: AsyncFunSuiteLike =>
-  override val executionContext: ExecutionContext = ExecutionContext.global
-  implicit val ioContextShift: ContextShift[IO] =
-    IO.contextShift(executionContext)
-  implicit val ioTimer: Timer[IO] = IO.timer(executionContext)
-
   private val eventStore             = new InMemoryEventStore[IO]
   private val transactionsRepository = new InMemoryTransactionsRepository[IO]
   private val accountsRepository     = new InMemoryAccountsRepository[IO]
 
-  private def subcriptions[F[_]: Concurrent](
+  private def subcriptions[F[_]: Async](
     topic: Topic[F, Event],
-    switch: concurrent.Deferred[F, Unit],
     accountsRepository: AccountsRepository[F],
     transactionsRepository: TransactionsRepository[F]
   ) =
@@ -43,9 +34,8 @@ trait BankFixture { self: AsyncFunSuiteLike =>
         accountsRepository,
         transactionsRepository
       )
-      .interruptWhen(switch.get.attempt)
 
-  private def createBackend[F[_]: ConcurrentEffect: ContextShift](
+  private def createBackend[F[_]: Async](
     topic: Topic[F, Event],
     eventStore: InMemoryEventStore[F],
     accountsRepository: AccountsRepository[F],
@@ -62,8 +52,7 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     Http4sBackend.usingClient[F](
       Http4sClient.fromHttpApp[F](
         bankRoutes.router
-      ),
-      Blocker.liftExecutionContext(executionContext)
+      )
     )
   }
 
@@ -79,11 +68,10 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     test(testName) {
       {
         for {
-          switch <- fs2.Stream.eval(concurrent.Deferred[IO, Unit])
-          topic  <- fs2.Stream.eval(Topic[IO, Event](InitEvent))
+          topic <- fs2.Stream.eval(Topic[IO, Event])
+          _     <- fs2.Stream.eval(topic.publish1(InitEvent))
           subs = subcriptions[IO](
                    topic,
-                   switch,
                    accountsRepository,
                    transactionsRepository
                  )
@@ -101,7 +89,6 @@ trait BankFixture { self: AsyncFunSuiteLike =>
                    )(_.close())
                    .use(f)
                ) concurrently subs
-          _ <- fs2.Stream.eval(switch.complete(())).delayBy(1 second)
         } yield r
       }.compile.last.map(_.getOrElse(fail("no assertion"))).unsafeToFuture()
     }
