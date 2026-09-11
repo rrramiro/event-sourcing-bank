@@ -1,6 +1,6 @@
 package bank
 
-import bank.model.events.{Event, InitEvent}
+import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
 import bank.storage._
@@ -19,7 +19,7 @@ object MainApp extends IOApp {
       new BankApp[IO](
         new BankRoutes[IO](
           new AccountService[IO](eventStore, topic),
-          new ClientService[IO](eventStore),
+          new ClientService[IO](eventStore, topic),
           accountsRepository,
           transactionsRepository
         ).routes
@@ -31,7 +31,6 @@ object MainApp extends IOApp {
              .subscribeListeners(topic, accountsRepository, transactionsRepository)
              .use { subscriptions =>
                Listeners.rebuildProjections(eventStore, accountsRepository, transactionsRepository) *>
-                 topic.publish1(InitEvent) *>
                  subscriptions
                    .concurrently(
                      fs2.Stream.eval(

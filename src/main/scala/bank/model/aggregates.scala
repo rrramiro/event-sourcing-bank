@@ -130,13 +130,16 @@ object aggregates {
 
     def applyEvent[F[_]: Applicative](accountState: F[AccountState], event: Event): F[AccountState] =
       event match {
-        case AccountOpenedEvent(clientId, balance, _) =>
-          AccountState(clientId = clientId, balance = balance).pure
-        case AccountDepositedEvent(amount, _) =>
-          accountState.map(s => s.copy(balance = s.balance + amount))
-        case AccountWithdrawnEvent(amount, _) =>
-          accountState.map(s => s.copy(balance = s.balance - amount))
-        case _ => accountState
+        case accountEvent: AccountEvent =>
+          accountEvent match {
+            case AccountOpenedEvent(clientId, balance, _) =>
+              AccountState(clientId = clientId, balance = balance).pure
+            case AccountDepositedEvent(amount, _) =>
+              accountState.map(s => s.copy(balance = s.balance + amount))
+            case AccountWithdrawnEvent(amount, _) =>
+              accountState.map(s => s.copy(balance = s.balance - amount))
+          }
+        case _: ClientEvent => accountState
       }
   }
 
@@ -179,11 +182,14 @@ object aggregates {
       event: Event
     ): F[ClientState] =
       event match {
-        case ClientEnrolledEvent(name, email, _) =>
-          ClientState(name, email).pure
-        case ClientUpdatedEvent(name, email, _) =>
-          accountState.map(_.copy(name = name, email = email))
-        case _ => accountState
+        case clientEvent: ClientEvent =>
+          clientEvent match {
+            case ClientEnrolledEvent(name, email, _) =>
+              ClientState(name, email).pure
+            case ClientUpdatedEvent(name, email, _) =>
+              accountState.map(_.copy(name = name, email = email))
+          }
+        case _: AccountEvent => accountState
       }
   }
 }

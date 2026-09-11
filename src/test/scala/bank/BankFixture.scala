@@ -1,6 +1,6 @@
 package bank
 
-import bank.model.events.{Event, InitEvent}
+import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
 import bank.storage._
@@ -34,7 +34,7 @@ trait BankFixture { self: AsyncFunSuiteLike =>
     val bankRoutes = new BankApp[F](
       new BankRoutes[F](
         new AccountService[F](eventStore, topic),
-        new ClientService[F](eventStore),
+        new ClientService[F](eventStore, topic),
         accountsRepository,
         transactionsRepository
       ).routes
@@ -70,22 +70,21 @@ trait BankFixture { self: AsyncFunSuiteLike =>
         assertion <- Listeners
                        .subscribeListeners[IO](topic, accountsRepository, transactionsRepository)
                        .use { subs =>
-                         topic.publish1(InitEvent) *>
-                           (fs2.Stream.eval(
-                             Resource
-                               .make(
-                                 IO(
-                                   createBackend(
-                                     topic,
-                                     eventStore,
-                                     accountsRepository,
-                                     transactionsRepository
-                                   )
+                         (fs2.Stream.eval(
+                           Resource
+                             .make(
+                               IO(
+                                 createBackend(
+                                   topic,
+                                   eventStore,
+                                   accountsRepository,
+                                   transactionsRepository
                                  )
-                               )(_.close())
-                               .use(f)
-                           ) concurrently subs).compile.last
-                             .map(_.getOrElse(fail("no assertion")))
+                               )
+                             )(_.close())
+                             .use(f)
+                         ) concurrently subs).compile.last
+                           .map(_.getOrElse(fail("no assertion")))
                        }
       } yield assertion).unsafeToFuture()
     }
