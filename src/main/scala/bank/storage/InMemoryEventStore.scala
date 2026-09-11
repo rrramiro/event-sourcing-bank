@@ -42,4 +42,9 @@ class InMemoryEventStore[F[_]: Sync] extends EventStore[F] {
     Sync[F].delay {
       eventStore.getOrElse(aggregateId, List.empty[Event])
     }
+
+  override def loadAll: F[List[Event]] =
+    Sync[F].delay {
+      eventStore.values.toList.flatten
+    }
 }

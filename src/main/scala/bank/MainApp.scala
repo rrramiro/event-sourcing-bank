@@ -30,7 +30,8 @@ object MainApp extends IOApp {
       _ <- Listeners
              .subscribeListeners(topic, accountsRepository, transactionsRepository)
              .use { subscriptions =>
-               topic.publish1(InitEvent) *>
+               Listeners.rebuildProjections(eventStore, accountsRepository, transactionsRepository) *>
+                 topic.publish1(InitEvent) *>
                  subscriptions
                    .concurrently(
                      fs2.Stream.eval(

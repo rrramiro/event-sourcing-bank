@@ -5,6 +5,7 @@ import bank.model.projection._
 import bank.storage._
 import cats.effect._
 import cats.syntax.apply._
+import cats.syntax.flatMap._
 import fs2.Pipe
 import fs2.concurrent.Topic
 
@@ -25,6 +26,27 @@ object Listeners {
           transactionEvents.through(transactionsListener(transactionsRepository))
         )
         .parJoin(2)
+    }
+
+  // Replays the whole event log directly into the projection repositories, through the same
+  // listener logic the live topic subscription uses - the read models are a pure function of the
+  // log, so this is how they get rebuilt after a restart (or after adding a brand new projection).
+  // Assumes it's run against empty repositories: `save`/`transactionsRepository.save` aren't
+  // idempotent, so replaying onto repositories already populated by live events would duplicate data.
+  def rebuildProjections[F[_]: Async](
+    eventStore: EventStore[F],
+    accountsRepository: AccountsRepository[F],
+    transactionsRepository: TransactionsRepository[F]
+  ): F[Unit] =
+    eventStore.loadAll.flatMap { events =>
+      fs2
+        .Stream[F, fs2.Stream[F, Unit]](
+          fs2.Stream.emits(events).through(accountsListener(accountsRepository)),
+          fs2.Stream.emits(events).through(transactionsListener(transactionsRepository))
+        )
+        .parJoin(2)
+        .compile
+        .drain
     }
 
   def accountsListener[F[_]: Sync](
