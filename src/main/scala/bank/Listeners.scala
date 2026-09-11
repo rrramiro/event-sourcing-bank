@@ -4,24 +4,28 @@ import bank.model.events._
 import bank.model.projection._
 import bank.storage._
 import cats.effect._
+import cats.syntax.apply._
 import fs2.Pipe
 import fs2.concurrent.Topic
 
 object Listeners {
 
+  // Registers both subscriptions (via subscribeAwait) before the Resource is acquired, so that
+  // any events published once `use` starts running are guaranteed to reach both listeners -
+  // unlike `Topic#subscribe`, which only starts capturing events once the returned stream is pulled.
   def subscribeListeners[F[_]: Async](
     eventsTopic: Topic[F, Event],
     accountsRepository: AccountsRepository[F],
     transactionsRepository: TransactionsRepository[F]
-  ): fs2.Stream[F, Unit] = {
-    val events = eventsTopic.subscribe(10)
-    fs2
-      .Stream[F, fs2.Stream[F, Unit]](
-        events.through(accountsListener(accountsRepository)),
-        events.through(transactionsListener(transactionsRepository))
-      )
-      .parJoin(2)
-  }
+  ): Resource[F, fs2.Stream[F, Unit]] =
+    (eventsTopic.subscribeAwait(10), eventsTopic.subscribeAwait(10)).mapN { (accountEvents, transactionEvents) =>
+      fs2
+        .Stream[F, fs2.Stream[F, Unit]](
+          accountEvents.through(accountsListener(accountsRepository)),
+          transactionEvents.through(transactionsListener(transactionsRepository))
+        )
+        .parJoin(2)
+    }
 
   def accountsListener[F[_]: Sync](
     accountsRepository: AccountsRepository[F]
@@ -37,15 +41,15 @@ object Listeners {
           )
         )
       case event: AccountDepositedEvent =>
-        accountsRepository.updateBalance(
+        accountsRepository.adjustBalance(
           event.eventId.aggregateId,
-          event.balance,
+          event.amount,
           event.eventId.version
         )
       case event: AccountWithdrawnEvent =>
-        accountsRepository.updateBalance(
+        accountsRepository.adjustBalance(
           event.eventId.aggregateId,
-          event.balance,
+          -event.amount,
           event.eventId.version
         )
       case _ => Sync[F].unit

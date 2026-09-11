@@ -75,10 +75,12 @@ class ClientTest extends AsyncFunSuite with BankFixture {
              .body(account.asJson.toString())
              .response(asJsonOrFail[AccountDto])
              .send(backend)
-      actual <- basicRequest
-                  .get(uri"http://localhost/api/clients/${dto.body.id}/accounts")
-                  .response(asJsonOrFail[List[AccountProjection]])
-                  .send(backend)
+      actual <- eventually(
+                  basicRequest
+                    .get(uri"http://localhost/api/clients/${dto.body.id}/accounts")
+                    .response(asJsonOrFail[List[AccountProjection]])
+                    .send(backend)
+                )(_.body.size == 1)
     } yield {
       assert(dto.body.name == client.name)
       assert(dto.body.email == client.email)

@@ -27,26 +27,25 @@ object MainApp extends IOApp {
 
     for {
       topic <- Topic[IO, Event]
-      _     <- topic.publish1(InitEvent)
-      subscriptions = Listeners.subscribeListeners(
-                        topic,
-                        accountsRepository,
-                        transactionsRepository
-                      )
-      _ <- subscriptions
-             .concurrently(
-               fs2.Stream.eval(
-                 EmberServerBuilder
-                   .default[IO]
-                   .withHost(ipv4"0.0.0.0")
-                   .withPort(port"8212")
-                   .withHttpApp(bankRoutes(topic).router)
-                   .build
-                   .use(_ => IO.never)
-               )
-             )
-             .compile
-             .drain
+      _ <- Listeners
+             .subscribeListeners(topic, accountsRepository, transactionsRepository)
+             .use { subscriptions =>
+               topic.publish1(InitEvent) *>
+                 subscriptions
+                   .concurrently(
+                     fs2.Stream.eval(
+                       EmberServerBuilder
+                         .default[IO]
+                         .withHost(ipv4"0.0.0.0")
+                         .withPort(port"8212")
+                         .withHttpApp(bankRoutes(topic).router)
+                         .build
+                         .use(_ => IO.never)
+                     )
+                   )
+                   .compile
+                   .drain
+             }
     } yield ()
   }.as(ExitCode.Success)
 

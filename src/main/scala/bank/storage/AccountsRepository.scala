@@ -7,9 +7,9 @@ import bank.model.projection.AccountProjection
 trait AccountsRepository[F[_]] {
   def save(accountProjection: AccountProjection): F[Unit]
 
-  def updateBalance(
+  def adjustBalance(
     accountId: UUID,
-    balance: BigDecimal,
+    delta: BigDecimal,
     version: Int
   ): F[Unit]
 

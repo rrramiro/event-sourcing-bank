@@ -36,13 +36,17 @@ class AccountService[F[_]: Concurrent](
   private def loadProcessStorePublish(id: UUID)(f: Account => ResultT[Account]): ResultT[Account] =
     load(id) >>= f >>= storeAndPublishEvents
 
+  // `broadcastThrough(eventsTopic.publish)` would treat each call's (finite) event stream completing
+  // as "the publisher is done" and close the shared topic - fine for a single long-lived publisher,
+  // wrong here since every command publishes its own short-lived stream. `evalMap(publish1)` just
+  // publishes each event without ever signalling topic completion.
   private def storeAndPublishEvents(account: Account): ResultT[Account] =
     EitherT.right[AggregateError] {
       eventStore.store(account.aggregateId) *>
         fs2
           .Stream(account.aggregateId.newEvents: _*)
           .covary[F]
-          .broadcastThrough(eventsTopic.publish)
+          .evalMap(eventsTopic.publish1)
           .compile
           .drain
           .as(account)

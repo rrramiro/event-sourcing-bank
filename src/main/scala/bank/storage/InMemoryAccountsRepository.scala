@@ -28,19 +28,21 @@ class InMemoryAccountsRepository[F[_]: Sync] extends AccountsRepository[F] {
       }
       .as(())
 
-  override def updateBalance(
+  override def adjustBalance(
     accountId: UUID,
-    balance: BigDecimal,
+    delta: BigDecimal,
     version: Int
   ): F[Unit] =
     Sync[F]
       .delay {
         accountClientIndex.get(accountId).map { clientId =>
-          val value = AccountProjection(accountId, clientId, balance, version)
+          def applied(oldValue: AccountProjection): AccountProjection =
+            if (oldValue.version >= version) oldValue
+            else oldValue.copy(balance = oldValue.balance + delta, version = version)
+
+          val value = AccountProjection(accountId, clientId, delta, version)
           clientAccounts.updateWith(clientId)(
-            _.fold(Map(accountId -> value))(_.updatedWith(accountId)(_.fold(value) { oldValue =>
-              if (oldValue.version >= value.version) oldValue else value
-            }.some)).some
+            _.fold(Map(accountId -> value))(_.updatedWith(accountId)(_.fold(value)(applied).some)).some
           )
         }
       }

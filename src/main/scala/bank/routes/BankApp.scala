@@ -14,7 +14,8 @@ class BankApp[F[_]: Sync](
 
   val router: HttpApp[F] =
     http4sKleisliResponseSyntaxOptionT(Router("/api" -> HttpErrorHandler[F, AggregateError](routes) {
-      case AggregateVersionError => InternalServerError()
-      case AggregateNotFound     => NotFound()
+      case AggregateVersionError  => InternalServerError()
+      case AggregateNotFound      => NotFound()
+      case InsufficientFundsError => BadRequest()
     })).orNotFound
 }

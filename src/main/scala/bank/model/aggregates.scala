@@ -13,9 +13,10 @@ import cats.mtl._
 
 object aggregates {
 
-  sealed trait AggregateError       extends Throwable
-  case object AggregateNotFound     extends Exception with AggregateError
-  case object AggregateVersionError extends Exception with AggregateError
+  sealed trait AggregateError        extends Throwable
+  case object AggregateNotFound      extends Exception with AggregateError
+  case object AggregateVersionError  extends Exception with AggregateError
+  case object InsufficientFundsError extends Exception with AggregateError
 
   trait Aggregate[State] {
     def state: State
@@ -97,18 +98,20 @@ object aggregates {
     def withdrawn[F[_]: Applicative](
       amount: BigDecimal
     )(account: Account)(implicit F: Raise[F, AggregateError]): F[Account] =
-      applyNewEvent(
-        account,
-        AccountWithdrawnEvent(
-          amount,
-          account.state.balance - amount,
-          EventId(
-            account.aggregateId.nextVersion,
-            account.aggregateId.id,
-            ZonedDateTime.now()
+      if (amount > account.state.balance)
+        F.raise(InsufficientFundsError)
+      else
+        applyNewEvent(
+          account,
+          AccountWithdrawnEvent(
+            amount,
+            EventId(
+              account.aggregateId.nextVersion,
+              account.aggregateId.id,
+              ZonedDateTime.now()
+            )
           )
         )
-      )
 
     def deposit[F[_]: Applicative](
       amount: BigDecimal
@@ -117,7 +120,6 @@ object aggregates {
         account,
         AccountDepositedEvent(
           amount,
-          account.state.balance + amount,
           EventId(
             account.aggregateId.nextVersion,
             account.aggregateId.id,
@@ -130,11 +132,10 @@ object aggregates {
       event match {
         case AccountOpenedEvent(clientId, balance, _) =>
           AccountState(clientId = clientId, balance = balance).pure
-        case AccountDepositedEvent(_, balance, _) =>
-          accountState.map(_.copy(balance = balance))
-        case AccountWithdrawnEvent(_, balance, _) =>
-          //TODO NonSufficientFundsException
-          accountState.map(_.copy(balance = balance))
+        case AccountDepositedEvent(amount, _) =>
+          accountState.map(s => s.copy(balance = s.balance + amount))
+        case AccountWithdrawnEvent(amount, _) =>
+          accountState.map(s => s.copy(balance = s.balance - amount))
         case _ => accountState
       }
   }

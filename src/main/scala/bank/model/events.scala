@@ -21,7 +21,6 @@ object events {
 
   final case class AccountDepositedEvent(
     amount: BigDecimal,
-    balance: BigDecimal,
     eventId: EventId
   ) extends Event
 
@@ -33,7 +32,6 @@ object events {
 
   final case class AccountWithdrawnEvent(
     amount: BigDecimal,
-    balance: BigDecimal,
     eventId: EventId
   ) extends Event
 
