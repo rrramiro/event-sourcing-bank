@@ -2,12 +2,14 @@ package bank.services
 
 import java.util.UUID
 
-import bank.model.aggregates.{Account, AggregateError}
+import bank.model.aggregates.{Account, AccountState, AggregateError}
 import bank.model.commands._
 import bank.model.events.Event
-import bank.storage.EventStore
+import bank.storage.{EventStore, SnapshotStore}
 import cats.data.EitherT
 import cats.effect._
+import cats.instances.int._
+import cats.syntax.eq._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.apply._
@@ -15,13 +17,19 @@ import fs2.concurrent.Topic
 
 class AccountService[F[_]: Concurrent](
   eventStore: EventStore[F],
-  eventsTopic: Topic[F, Event]
+  eventsTopic: Topic[F, Event],
+  snapshotStore: SnapshotStore[F, AccountState],
+  snapshotEvery: Int
 ) {
 
   type ResultT[T] = EitherT[F, AggregateError, T]
 
   def load(id: UUID): ResultT[Account] =
-    EitherT.right[AggregateError](eventStore.load(id)) >>= Account.load[ResultT](id)
+    EitherT.right[AggregateError](snapshotStore.load(id)) >>= { snapshot =>
+      EitherT.right[AggregateError](eventStore.loadSince(id, snapshot.fold(0)(_.version))) >>= { events =>
+        Account.load[ResultT](id)(events, snapshot.map(s => s.state -> s.version))
+      }
+    }
 
   def process(command: AccountCommand): ResultT[Account] =
     command match {
@@ -49,6 +57,18 @@ class AccountService[F[_]: Concurrent](
           .evalMap(eventsTopic.publish1)
           .compile
           .drain
+          .productR(maybeSnapshot(account))
           .as(account)
       }
+
+  // Every `snapshotEvery` committed versions, cache the fold result so a later `load` can resume
+  // from here instead of replaying from event #1. Purely an optimization: correctness never depends
+  // on a snapshot existing, since `load` falls back to the full log when there isn't one.
+  private def maybeSnapshot(account: Account): F[Unit] = {
+    val committedVersion = account.aggregateId.baseVersion + account.aggregateId.newEvents.size
+    if (committedVersion % snapshotEvery === 0)
+      snapshotStore.save(account.aggregateId.id, committedVersion, account.state)
+    else
+      Concurrent[F].unit
+  }
 }

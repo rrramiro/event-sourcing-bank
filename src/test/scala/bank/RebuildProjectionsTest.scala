@@ -2,6 +2,7 @@ package bank
 
 import java.util.UUID
 
+import bank.model.aggregates.AccountState
 import bank.model.commands._
 import bank.model.events.Event
 import bank.services.AccountService
@@ -13,12 +14,13 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class RebuildProjectionsTest extends AnyFunSuite {
   test("projections can be rebuilt from the event store alone, without the live topic") {
-    val eventStore = new InMemoryEventStore[IO]
-    val clientId   = UUID.randomUUID()
+    val eventStore    = new InMemoryEventStore[IO]
+    val snapshotStore = new InMemorySnapshotStore[IO, AccountState]
+    val clientId      = UUID.randomUUID()
 
     val accountId = (for {
       topic <- Topic[IO, Event]
-      service = new AccountService[IO](eventStore, topic)
+      service = new AccountService[IO](eventStore, topic, snapshotStore, snapshotEvery = 5)
       opened <- service.process(OpenAccountCommand(clientId)).value
       account = opened.getOrElse(fail("open failed"))
       _ <- service.process(DepositAccountCommand(account.aggregateId.id, 50)).value

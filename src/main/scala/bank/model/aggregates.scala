@@ -40,11 +40,18 @@ object aggregates {
       event: Event
     ): F[State]
 
+    // `eventStream` need only hold the events after `snapshot`'s version (see EventStore.loadSince) -
+    // folding resumes from the snapshot's state instead of replaying an aggregate's full history.
+    // With no snapshot, an empty `eventStream` means the aggregate was never found, same as before.
     def load[F[_]: Applicative](
       id: UUID
-    )(eventStream: List[Event])(implicit F: Raise[F, AggregateError]): F[Agg] =
+    )(eventStream: List[Event], snapshot: Option[(State, Int)])(implicit
+      F: Raise[F, AggregateError]
+    ): F[Agg] =
       eventStream
-        .foldLeft(F.raise[AggregateError, (State, Int)](AggregateNotFound)) {
+        .foldLeft(
+          snapshot.fold(F.raise[AggregateError, (State, Int)](AggregateNotFound))(_.pure[F])
+        ) {
           case (s, e) => applyEvent(s.map(_._1), e).map(_ -> e.eventId.version)
         }
         .map {

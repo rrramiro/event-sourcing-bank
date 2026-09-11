@@ -44,9 +44,9 @@ class InMemoryEventStore[F[_]: Sync] extends EventStore[F] {
         _ => Sync[F].pure(Right(()))
       )
 
-  override def load(aggregateId: UUID): F[List[Event]] =
+  override def loadSince(aggregateId: UUID, afterVersion: Int): F[List[Event]] =
     Sync[F].delay {
-      eventStore.getOrElse(aggregateId, List.empty[Event])
+      eventStore.getOrElse(aggregateId, List.empty[Event]).filter(_.eventId.version > afterVersion)
     }
 
   override def loadAll: F[List[Event]] =

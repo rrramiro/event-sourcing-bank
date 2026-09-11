@@ -1,5 +1,6 @@
 package bank
 
+import bank.model.aggregates.{AccountState, ClientState}
 import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
@@ -24,17 +25,22 @@ trait BankFixture { self: AsyncFunSuiteLike =>
   private val eventStore             = new InMemoryEventStore[IO]
   private val transactionsRepository = new InMemoryTransactionsRepository[IO]
   private val accountsRepository     = new InMemoryAccountsRepository[IO]
+  private val accountSnapshotStore   = new InMemorySnapshotStore[IO, AccountState]
+  private val clientSnapshotStore    = new InMemorySnapshotStore[IO, ClientState]
 
   private def createBackend[F[_]: Async](
     topic: Topic[F, Event],
     eventStore: InMemoryEventStore[F],
     accountsRepository: AccountsRepository[F],
-    transactionsRepository: TransactionsRepository[F]
+    transactionsRepository: TransactionsRepository[F],
+    accountSnapshotStore: SnapshotStore[F, AccountState],
+    clientSnapshotStore: SnapshotStore[F, ClientState],
+    snapshotEvery: Int = 5
   ): SttpBackend[F, Fs2Streams[F]] = {
     val bankRoutes = new BankApp[F](
       new BankRoutes[F](
-        new AccountService[F](eventStore, topic),
-        new ClientService[F](eventStore, topic),
+        new AccountService[F](eventStore, topic, accountSnapshotStore, snapshotEvery),
+        new ClientService[F](eventStore, topic, clientSnapshotStore, snapshotEvery),
         accountsRepository,
         transactionsRepository
       ).routes
@@ -78,7 +84,9 @@ trait BankFixture { self: AsyncFunSuiteLike =>
                                    topic,
                                    eventStore,
                                    accountsRepository,
-                                   transactionsRepository
+                                   transactionsRepository,
+                                   accountSnapshotStore,
+                                   clientSnapshotStore
                                  )
                                )
                              )(_.close())
