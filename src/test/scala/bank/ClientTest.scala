@@ -15,18 +15,14 @@ class ClientTest extends AsyncFunSuite with BankFixture {
   testApp("enroll") { backend =>
     val client = ClientDto(UUID.randomUUID(), "Jhon Doe", Email("doe@mail.com"))
     for {
-      dto <- basicRequest
-               .post(uri"http://localhost/api/clients")
-               .body(client.asJson.toString())
-               .response(asJsonOrFail[ClientDto])
-               .send(backend)
+      dto <- enrollClient(backend, client)
       actual <- basicRequest
-                  .get(uri"http://localhost/api/clients/${dto.body.id}")
+                  .get(uri"http://localhost/api/clients/${dto.id}")
                   .response(asJsonOrFail[ClientDto])
                   .send(backend)
     } yield {
-      assert(dto.body.name == client.name)
-      assert(dto.body.email == client.email)
+      assert(dto.name == client.name)
+      assert(dto.email == client.email)
       assert(actual.body.name == client.name)
       assert(actual.body.email == client.email)
     }
@@ -37,23 +33,19 @@ class ClientTest extends AsyncFunSuite with BankFixture {
     val clientUpdated =
       ClientDto(UUID.randomUUID(), "Jane Doe", Email("jane@doe.com"))
     for {
-      dto <- basicRequest
-               .post(uri"http://localhost/api/clients")
-               .body(client.asJson.toString())
-               .response(asJsonOrFail[ClientDto])
-               .send(backend)
+      dto <- enrollClient(backend, client)
       updated <- basicRequest
-                   .put(uri"http://localhost/api/clients/${dto.body.id}")
+                   .put(uri"http://localhost/api/clients/${dto.id}")
                    .body(clientUpdated.asJson.toString())
                    .response(asJsonOrFail[ClientDto])
                    .send(backend)
       actual <- basicRequest
-                  .get(uri"http://localhost/api/clients/${dto.body.id}")
+                  .get(uri"http://localhost/api/clients/${dto.id}")
                   .response(asJsonOrFail[ClientDto])
                   .send(backend)
     } yield {
-      assert(dto.body.name == client.name)
-      assert(dto.body.email == client.email)
+      assert(dto.name == client.name)
+      assert(dto.email == client.email)
       assert(actual.body.name == clientUpdated.name)
       assert(updated.body.email == clientUpdated.email)
       assert(updated.body.name == clientUpdated.name)
@@ -64,26 +56,17 @@ class ClientTest extends AsyncFunSuite with BankFixture {
   testApp("accounts") { backend =>
     val client = ClientDto(UUID.randomUUID(), "Jhon Doe", Email("doe@mail.com"))
     for {
-      dto <- basicRequest
-               .post(uri"http://localhost/api/clients")
-               .body(client.asJson.toString())
-               .response(asJsonOrFail[ClientDto])
-               .send(backend)
-      account = AccountDto(UUID.randomUUID(), 0, dto.body.id)
-      _ <- basicRequest
-             .post(uri"http://localhost/api/accounts")
-             .body(account.asJson.toString())
-             .response(asJsonOrFail[AccountDto])
-             .send(backend)
+      dto <- enrollClient(backend, client)
+      _   <- openAccount(backend, dto.id)
       actual <- eventually(
                   basicRequest
-                    .get(uri"http://localhost/api/clients/${dto.body.id}/accounts")
+                    .get(uri"http://localhost/api/clients/${dto.id}/accounts")
                     .response(asJsonOrFail[List[AccountProjection]])
                     .send(backend)
                 )(_.body.size == 1)
     } yield {
-      assert(dto.body.name == client.name)
-      assert(dto.body.email == client.email)
+      assert(dto.name == client.name)
+      assert(dto.email == client.email)
       assert(actual.body.size == 1)
     }
   }

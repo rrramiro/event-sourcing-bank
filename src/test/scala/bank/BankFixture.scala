@@ -1,6 +1,9 @@
 package bank
 
+import java.util.UUID
+
 import bank.model.aggregates.{AccountState, ClientState}
+import bank.model.dto._
 import bank.model.events.Event
 import bank.routes.{BankApp, BankRoutes}
 import bank.services._
@@ -9,6 +12,8 @@ import cats.effect._
 import cats.syntax.either._
 import fs2.concurrent.Topic
 import io.circe.Decoder
+import io.circe.generic.auto._
+import io.circe.syntax._
 import org.http4s.client.{Client => Http4sClient}
 import org.scalatest.Assertion
 import org.scalatest.funsuite.AsyncFunSuiteLike
@@ -66,6 +71,60 @@ trait BankFixture { self: AsyncFunSuiteLike =>
       if (meta.code != StatusCode.Ok) fail(s"error code: ${meta.code}")
       else body.valueOr(error => fail(error.toString))
     }
+
+  def enrollClient(backend: SttpBackend[IO, Fs2Streams[IO]], client: ClientDto): IO[ClientDto] =
+    basicRequest
+      .post(uri"http://localhost/api/clients")
+      .body(client.asJson.toString())
+      .response(asJsonOrFail[ClientDto])
+      .send(backend)
+      .map(_.body)
+
+  def openAccount(backend: SttpBackend[IO, Fs2Streams[IO]], clientId: UUID): IO[AccountDto] = {
+    val account = AccountDto(UUID.randomUUID(), 0, clientId)
+    basicRequest
+      .post(uri"http://localhost/api/accounts")
+      .body(account.asJson.toString())
+      .response(asJsonOrFail[AccountDto])
+      .send(backend)
+      .map(_.body)
+  }
+
+  def depositInto(
+    backend: SttpBackend[IO, Fs2Streams[IO]],
+    accountId: UUID,
+    amount: BigDecimal
+  ): IO[AccountDto] =
+    postAmount(backend, accountId, "deposits", amount, asJsonOrFail[AccountDto]).map(_.body)
+
+  def withdrawFrom(
+    backend: SttpBackend[IO, Fs2Streams[IO]],
+    accountId: UUID,
+    amount: BigDecimal
+  ): IO[AccountDto] =
+    postAmount(backend, accountId, "withdrawals", amount, asJsonOrFail[AccountDto]).map(_.body)
+
+  def withdrawalStatus(
+    backend: SttpBackend[IO, Fs2Streams[IO]],
+    accountId: UUID,
+    amount: BigDecimal
+  ): IO[StatusCode] =
+    postAmount(backend, accountId, "withdrawals", amount, sttp.client3.ignore).map(_.code)
+
+  private def postAmount[B](
+    backend: SttpBackend[IO, Fs2Streams[IO]],
+    accountId: UUID,
+    operation: String,
+    amount: BigDecimal,
+    responseAs: ResponseAs[B, Any]
+  ): IO[Response[B]] = {
+    val request = DepositDto(accountId, amount)
+    basicRequest
+      .post(uri"http://localhost/api/accounts/$accountId/$operation")
+      .body(request.asJson.toString())
+      .response(responseAs)
+      .send(backend)
+  }
 
   def testApp(testName: String)(
     f: SttpBackend[IO, Fs2Streams[IO]] => IO[Assertion]

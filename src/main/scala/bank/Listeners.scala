@@ -7,6 +7,7 @@ import cats.effect._
 import cats.syntax.apply._
 import cats.syntax.flatMap._
 import fs2.Pipe
+import fs2.Stream
 import fs2.concurrent.Topic
 
 object Listeners {
@@ -20,12 +21,7 @@ object Listeners {
     transactionsRepository: TransactionsRepository[F]
   ): Resource[F, fs2.Stream[F, Unit]] =
     (eventsTopic.subscribeAwait(10), eventsTopic.subscribeAwait(10)).mapN { (accountEvents, transactionEvents) =>
-      fs2
-        .Stream[F, fs2.Stream[F, Unit]](
-          accountEvents.through(accountsListener(accountsRepository)),
-          transactionEvents.through(transactionsListener(transactionsRepository))
-        )
-        .parJoin(2)
+      projectionListeners(accountEvents, transactionEvents, accountsRepository, transactionsRepository)
     }
 
   // Replays the whole event log directly into the projection repositories, through the same
@@ -39,19 +35,35 @@ object Listeners {
     transactionsRepository: TransactionsRepository[F]
   ): F[Unit] =
     eventStore.loadAll.flatMap { events =>
-      fs2
-        .Stream[F, fs2.Stream[F, Unit]](
-          fs2.Stream.emits(events).through(accountsListener(accountsRepository)),
-          fs2.Stream.emits(events).through(transactionsListener(transactionsRepository))
-        )
-        .parJoin(2)
-        .compile
-        .drain
+      projectionListeners(
+        Stream.emits(events),
+        Stream.emits(events),
+        accountsRepository,
+        transactionsRepository
+      ).compile.drain
     }
+
+  private def projectionListeners[F[_]: Async](
+    accountEvents: Stream[F, Event],
+    transactionEvents: Stream[F, Event],
+    accountsRepository: AccountsRepository[F],
+    transactionsRepository: TransactionsRepository[F]
+  ): Stream[F, Unit] =
+    Stream[F, Stream[F, Unit]](
+      accountEvents.through(accountsListener(accountsRepository)),
+      transactionEvents.through(transactionsListener(transactionsRepository))
+    ).parJoin(2)
 
   def accountsListener[F[_]: Sync](
     accountsRepository: AccountsRepository[F]
-  ): Pipe[F, Event, Unit] =
+  ): Pipe[F, Event, Unit] = {
+    def adjust(event: AccountEvent, delta: BigDecimal): F[Unit] =
+      accountsRepository.adjustBalance(
+        event.eventId.aggregateId,
+        delta,
+        event.eventId.version
+      )
+
     _.evalMap {
       case event: AccountEvent =>
         event match {
@@ -65,49 +77,38 @@ object Listeners {
               )
             )
           case event: AccountDepositedEvent =>
-            accountsRepository.adjustBalance(
-              event.eventId.aggregateId,
-              event.amount,
-              event.eventId.version
-            )
+            adjust(event, event.amount)
           case event: AccountWithdrawnEvent =>
-            accountsRepository.adjustBalance(
-              event.eventId.aggregateId,
-              -event.amount,
-              event.eventId.version
-            )
+            adjust(event, -event.amount)
         }
       case _: ClientEvent => Sync[F].unit
     }
+  }
 
   def transactionsListener[F[_]: Sync](
     transactionsRepository: TransactionsRepository[F]
-  ): Pipe[F, Event, Unit] =
+  ): Pipe[F, Event, Unit] = {
+    def save(event: AccountEvent, transactionType: TransactionType, amount: BigDecimal): F[Unit] =
+      transactionsRepository.save(
+        TransactionProjection(
+          event.eventId.aggregateId,
+          transactionType,
+          amount,
+          event.eventId.timestamp,
+          event.eventId.version
+        )
+      )
+
     _.evalMap {
       case event: AccountEvent =>
         event match {
           case event: AccountDepositedEvent =>
-            transactionsRepository.save(
-              TransactionProjection(
-                event.eventId.aggregateId,
-                TransactionType.Deposit,
-                event.amount,
-                event.eventId.timestamp,
-                event.eventId.version
-              )
-            )
+            save(event, TransactionType.Deposit, event.amount)
           case event: AccountWithdrawnEvent =>
-            transactionsRepository.save(
-              TransactionProjection(
-                event.eventId.aggregateId,
-                TransactionType.Withdrawal,
-                event.amount,
-                event.eventId.timestamp,
-                event.eventId.version
-              )
-            )
+            save(event, TransactionType.Withdrawal, event.amount)
           case _: AccountOpenedEvent => Sync[F].unit
         }
       case _: ClientEvent => Sync[F].unit
     }
+  }
 }

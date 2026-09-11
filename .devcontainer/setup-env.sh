@@ -22,5 +22,5 @@ echo "Coursier not found. Installing..."
 
 curl -fL "https://github.com/coursier/launchers/raw/master/cs-x86_64-pc-linux.gz" | gzip -d > coursier
 chmod +x coursier
-./coursier setup --jvm 17 --apps bloop,metals,ammonite,cs,coursier,scala,scalac,scala-cli,sbt,scalafmt --yes --user-home ~
+./coursier setup --jvm 21 --apps bloop,metals,metals-mcp,cs,sbt,scalafmt --yes --user-home ~
 rm -f coursier

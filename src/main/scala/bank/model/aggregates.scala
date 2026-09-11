@@ -29,6 +29,9 @@ object aggregates {
     newEvents: List[Event]
   ) {
     def nextVersion: Int = baseVersion + newEvents.size + 1
+
+    def nextEventId(timestamp: ZonedDateTime): EventId =
+      EventId(nextVersion, id, timestamp)
   }
 
   trait AggregateCompanion[State, Agg <: Aggregate[State]] {
@@ -112,11 +115,7 @@ object aggregates {
           account,
           AccountWithdrawnEvent(
             amount,
-            EventId(
-              account.aggregateId.nextVersion,
-              account.aggregateId.id,
-              ZonedDateTime.now()
-            )
+            account.aggregateId.nextEventId(ZonedDateTime.now())
           )
         )
 
@@ -127,11 +126,7 @@ object aggregates {
         account,
         AccountDepositedEvent(
           amount,
-          EventId(
-            account.aggregateId.nextVersion,
-            account.aggregateId.id,
-            ZonedDateTime.now()
-          )
+          account.aggregateId.nextEventId(ZonedDateTime.now())
         )
       )
 
@@ -176,11 +171,7 @@ object aggregates {
         ClientUpdatedEvent(
           name,
           email,
-          EventId(
-            client.aggregateId.nextVersion,
-            client.aggregateId.id,
-            ZonedDateTime.now()
-          )
+          client.aggregateId.nextEventId(ZonedDateTime.now())
         )
       )
 
