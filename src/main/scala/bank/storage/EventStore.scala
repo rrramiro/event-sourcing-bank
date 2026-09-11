@@ -2,11 +2,14 @@ package bank.storage
 
 import java.util.UUID
 
-import bank.model.aggregates.AggregateId
+import bank.model.aggregates.{AggregateError, AggregateId}
 import bank.model.events.Event
 
 trait EventStore[F[_]] {
-  def store(aggregateId: AggregateId): F[Unit]
+  // Fails with a Left(AggregateVersionError) on an optimistic-concurrency conflict rather than
+  // raising - callers route it through the same EitherT[F, AggregateError, *] channel every other
+  // domain error uses, instead of an unstructured exception bypassing HttpErrorHandler.
+  def store(aggregateId: AggregateId): F[Either[AggregateError, Unit]]
 
   def load(aggregateId: UUID): F[List[Event]]
 

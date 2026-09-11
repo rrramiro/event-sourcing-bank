@@ -41,8 +41,8 @@ class AccountService[F[_]: Concurrent](
   // wrong here since every command publishes its own short-lived stream. `evalMap(publish1)` just
   // publishes each event without ever signalling topic completion.
   private def storeAndPublishEvents(account: Account): ResultT[Account] =
-    EitherT.right[AggregateError] {
-      eventStore.store(account.aggregateId) *>
+    EitherT(eventStore.store(account.aggregateId)) *>
+      EitherT.right[AggregateError] {
         fs2
           .Stream(account.aggregateId.newEvents: _*)
           .covary[F]
@@ -50,5 +50,5 @@ class AccountService[F[_]: Concurrent](
           .compile
           .drain
           .as(account)
-    }
+      }
 }

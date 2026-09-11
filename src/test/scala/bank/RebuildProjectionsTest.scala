@@ -17,12 +17,12 @@ class RebuildProjectionsTest extends AnyFunSuite {
     val clientId   = UUID.randomUUID()
 
     val accountId = (for {
-      topic     <- Topic[IO, Event]
-      service    = new AccountService[IO](eventStore, topic)
-      opened    <- service.process(OpenAccountCommand(clientId)).value
-      account    = opened.getOrElse(fail("open failed"))
-      _         <- service.process(DepositAccountCommand(account.aggregateId.id, 50)).value
-      _         <- service.process(WithdrawAccountCommand(account.aggregateId.id, 20)).value
+      topic <- Topic[IO, Event]
+      service = new AccountService[IO](eventStore, topic)
+      opened <- service.process(OpenAccountCommand(clientId)).value
+      account = opened.getOrElse(fail("open failed"))
+      _ <- service.process(DepositAccountCommand(account.aggregateId.id, 50)).value
+      _ <- service.process(WithdrawAccountCommand(account.aggregateId.id, 20)).value
     } yield account.aggregateId.id).unsafeRunSync()
 
     // Fresh, empty repositories - nothing has ever come through a live topic subscription for them.

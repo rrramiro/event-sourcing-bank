@@ -26,5 +26,5 @@ class ClientService[F[_]: Sync](eventStore: EventStore[F]) {
     }
 
   private def storeEvents(client: Client): ResultT[Client] =
-    EitherT.right[AggregateError](eventStore.store(client.aggregateId).as(client))
+    EitherT(eventStore.store(client.aggregateId)).as(client)
 }
