@@ -37,20 +37,13 @@ object MainApp extends IOApp {
              .subscribeListeners(topic, accountsRepository, transactionsRepository)
              .use { subscriptions =>
                Listeners.rebuildProjections(eventStore, accountsRepository, transactionsRepository) *>
-                 subscriptions
-                   .concurrently(
-                     fs2.Stream.eval(
-                       EmberServerBuilder
-                         .default[IO]
-                         .withHost(ipv4"0.0.0.0")
-                         .withPort(port"8212")
-                         .withHttpApp(bankRoutes(topic).router)
-                         .build
-                         .use(_ => IO.never)
-                     )
-                   )
-                   .compile
-                   .drain
+                 EmberServerBuilder
+                   .default[IO]
+                   .withHost(ipv4"0.0.0.0")
+                   .withPort(port"8212")
+                   .withHttpApp(bankRoutes(topic).router)
+                   .build
+                   .use(_ => subscriptions.compile.drain)
              }
     } yield ()
   }.as(ExitCode.Success)

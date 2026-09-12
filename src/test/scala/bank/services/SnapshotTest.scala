@@ -29,7 +29,7 @@ class SnapshotTest extends AnyFunSuite {
     val snapshotStore = new InMemorySnapshotStore[IO, AccountState]
 
     val program = for {
-      topic  <- Topic[IO, Event]
+      topic <- Topic[IO, Event]
       service = new AccountService[IO](eventStore, topic, snapshotStore, snapshotEvery = 3)
       opened <- service.process(OpenAccountCommand(UUID.randomUUID())).value // v1
       account = opened.getOrElse(fail("open failed"))
@@ -49,20 +49,20 @@ class SnapshotTest extends AnyFunSuite {
 
   test("load resumes from the snapshot instead of replaying the full event log") {
     val program = for {
-      calls        <- Ref.of[IO, List[Int]](List.empty)
+      calls <- Ref.of[IO, List[Int]](List.empty)
       underlying    = new InMemoryEventStore[IO]
       eventStore    = new RecordingEventStore(underlying, calls)
       snapshotStore = new InMemorySnapshotStore[IO, AccountState]
-      topic        <- Topic[IO, Event]
-      service       = new AccountService[IO](eventStore, topic, snapshotStore, snapshotEvery = 3)
-      opened       <- service.process(OpenAccountCommand(UUID.randomUUID())).value // v1
-      account       = opened.getOrElse(fail("open failed"))
-      id            = account.aggregateId.id
-      _            <- service.process(DepositAccountCommand(id, 1)).value // v2
-      _            <- service.process(DepositAccountCommand(id, 1)).value // v3 -> snapshot
-      _            <- service.process(DepositAccountCommand(id, 1)).value // v4
-      _            <- calls.set(List.empty)
-      loaded       <- service.load(id).value
+      topic <- Topic[IO, Event]
+      service = new AccountService[IO](eventStore, topic, snapshotStore, snapshotEvery = 3)
+      opened <- service.process(OpenAccountCommand(UUID.randomUUID())).value // v1
+      account = opened.getOrElse(fail("open failed"))
+      id      = account.aggregateId.id
+      _             <- service.process(DepositAccountCommand(id, 1)).value // v2
+      _             <- service.process(DepositAccountCommand(id, 1)).value // v3 -> snapshot
+      _             <- service.process(DepositAccountCommand(id, 1)).value // v4
+      _             <- calls.set(List.empty)
+      loaded        <- service.load(id).value
       recordedCalls <- calls.get
     } yield (loaded, recordedCalls)
 
